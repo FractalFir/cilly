@@ -1,0 +1,19 @@
+#[qparse_macros::qparse("")]
+pub enum Linkage {
+    #[qparse("external")]
+    External,
+    #[qparse("internal")]
+    Internal,
+    #[qparse("private")]
+    Private,
+    #[qparse("weak")]
+    Weak,
+    #[qparse("linkonce")]
+    LinkOnce,
+    #[qparse("common")]
+    Common,
+    #[qparse("appending")]
+    Appending,
+    #[qparse("extern_weak")]
+    ExternWeak,
+}
