@@ -13,4 +13,3 @@ pub use global_ident::*;
 pub(crate) struct PlaceHolder;
 
 pub(crate) type TyAndAttr = PlaceHolder;
-
