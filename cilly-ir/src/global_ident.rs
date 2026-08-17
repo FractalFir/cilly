@@ -8,7 +8,7 @@ use nom::{
     sequence::preceded,
 };
 use std::fmt::Write;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GlobalIdent {
     name: String,
 }

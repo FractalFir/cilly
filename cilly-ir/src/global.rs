@@ -1,6 +1,6 @@
 use std::{fmt::Write, num::NonZeroU32};
 
-use crate::{GlobalIdent, Linkage, PlaceHolder};
+use crate::{GlobalIdent, Linkage, ModuleBuilderError};
 
 #[qparse_macros::qparse("")]
 pub(crate) enum GlobalKind {
@@ -11,11 +11,11 @@ pub(crate) enum GlobalKind {
 }
 #[qparse_macros::qparse("{name} = {linkage} {kind} {initializer}, align {align}")]
 pub(crate) struct Global {
-    name: GlobalIdent,
-    linkage: Linkage,
-    kind: GlobalKind,
-    initializer: ConstInit,
-    align: NonZeroU32,
+    pub(crate) name: GlobalIdent,
+    pub(crate) linkage: Linkage,
+    pub(crate) kind: GlobalKind,
+    pub(crate) initializer: ConstInit,
+    pub(crate) align: NonZeroU32,
 }
 #[qparse_macros::qparse("")]
 #[derive(Debug)]
@@ -66,23 +66,25 @@ impl std::fmt::Display for ConstInit {
             return write!(f, "ptr {ident}");
         };
         f.write_str("<{")?;
-        for (idx,frag) in (&self.fragments).iter().enumerate(){
-            if idx != 0{
+        for (idx, frag) in (&self.fragments).iter().enumerate() {
+            if idx != 0 {
                 f.write_char(',')?;
             }
-            match frag{
+            match frag {
                 ConstInitFrag::Ptr(_) => f.write_str("ptr"),
-                ConstInitFrag::ByteRun(byte_run) => write!(f,"[{} x i8]",byte_run.bytes.len()),
+                ConstInitFrag::ByteRun(byte_run) => write!(f, "[{} x i8]", byte_run.bytes.len()),
             }?;
         }
         f.write_str("}> <{")?;
-        for (idx,frag) in (&self.fragments).iter().enumerate(){
-            if idx != 0{
+        for (idx, frag) in (&self.fragments).iter().enumerate() {
+            if idx != 0 {
                 f.write_char(',')?;
             }
-            match frag{
-                ConstInitFrag::Ptr(ident) => write!(f,"ptr {ident}"),
-                ConstInitFrag::ByteRun(byte_run) => write!(f,"[{len} x i8] {byte_run}",len = byte_run.bytes.len()),
+            match frag {
+                ConstInitFrag::Ptr(ident) => write!(f, "ptr {ident}"),
+                ConstInitFrag::ByteRun(byte_run) => {
+                    write!(f, "[{len} x i8] {byte_run}", len = byte_run.bytes.len())
+                }
             }?;
         }
         f.write_str("}>")?;
@@ -100,7 +102,7 @@ impl ConstInit {
         bytes: Vec<u8>,
         mut refs: Vec<(u32, GlobalIdent)>,
         ptr_size: u32,
-    ) -> Option<Self> {
+    ) -> Result<Self, ModuleBuilderError> {
         refs.sort_by_key(|(offset, _)| *offset);
         let mut biter = bytes.iter();
         let mut last_offset = 0;
@@ -109,14 +111,14 @@ impl ConstInit {
             let delta = offset - last_offset;
             let bytes: Vec<u8> = (0..delta).flat_map(|_| biter.next()).copied().collect();
             if bytes.len() != delta as _ {
-                return None;
+                return Err(ModuleBuilderError::GlobalInitNotEnoughBytes);
             }
             if !bytes.is_empty() {
                 fragments.push(ConstInitFrag::ByteRun(ByteRun { bytes }));
             }
             // Pop dem bytes
             if !(0..ptr_size).fold(true, |ok, _| ok & biter.next().is_some_and(|v| *v == 0)) {
-                return None;
+                return Err(ModuleBuilderError::GlobalInitAddrByteNonzero);
             }
             fragments.push(ConstInitFrag::Ptr(rf));
             last_offset = offset + ptr_size;
@@ -125,34 +127,10 @@ impl ConstInit {
         if !bytes.is_empty() {
             fragments.push(ConstInitFrag::ByteRun(ByteRun { bytes: bytes }));
         }
-        Some(Self { fragments })
+        Ok(Self { fragments })
     }
 }
-/*
-pub fn const_init_str(bytes:&[u8])->String{
 
-}
-impl std::fmt::Display for ConstInit{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.refs.is_empty(){
-            write!(f, "[{len}xi8] {init}",len = self.bytes.len(),init = const_init_str(&self.bytes))?;
-            return Ok(());
-        }
-        let mut byterun:Vec<u8> = vec![];
-        for (offset,byte) in self.bytes.iter().enumerate(){
-            if let Some(rf) = self.at_offset(offset as u32){
-                todo!("reference {}",rf.1)
-            }
-        }
-        todo!()
-    }
-}
-impl qparse::Parseable<qparse::Display> for ConstInit {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
-        todo!()
-    }
-}
-*/
 #[test]
 fn text_global() {
     assert_eq!(
