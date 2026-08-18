@@ -1,3 +1,4 @@
+use arbitrary::Arbitrary;
 use nom::{
     Parser,
     branch::alt,
@@ -8,7 +9,7 @@ use nom::{
     sequence::preceded,
 };
 use std::fmt::Write;
-#[derive(Debug, Clone)]
+#[derive(Clone, Arbitrary, PartialEq, Eq, Debug)]
 pub struct GlobalIdent {
     name: String,
 }

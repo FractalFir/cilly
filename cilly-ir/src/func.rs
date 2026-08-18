@@ -6,7 +6,7 @@ use nom::{
 };
 use qparse_macros::qparse;
 
-use crate::{AttrList, GlobalIdent, Linkage, SourceLocation, Type};
+use crate::{AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, locals::Locals};
 
 /// Function Declaration or Definition.
 #[qparse_macros::qparse("")]
@@ -21,7 +21,7 @@ pub(crate) enum Fnc {
     },
     #[qparse(
         "{src_loc}define {linkage} {output} {name} ({inputs}){{
-{locals}{body}}}"
+{locals}{body} }}"
     )]
     Def {
         src_loc: SourceLocation,
@@ -33,10 +33,6 @@ pub(crate) enum Fnc {
         body: Body,
     },
 }
-#[qparse_macros::qparse("")]
-pub(crate) struct Locals {}
-#[qparse_macros::qparse("")]
-pub(crate) struct Body {}
 pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
 }
@@ -114,12 +110,15 @@ fn extern_global() {
     )
     .unwrap();
     <Fnc as qparse::Parseable<qparse::Display>>::parse(
-        "define external zext i8 @HELLO (i8 sext %v0){ }",
+        "define external zext i8 @HELLO (i8 sext %v0){ 
+    %v5 = alloca i8, i32 8, align 8 ; this is an alloca :3
+    %l6 = alloca i127
+    ret void
+}",
     )
     .unwrap();
     <Fnc as qparse::Parseable<qparse::Display>>::parse(
         "; source @a:10:20 declare external zext i8 @HELLO (i8 sext %v0)",
     )
     .unwrap();
-
 }

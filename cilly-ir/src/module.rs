@@ -6,7 +6,7 @@ use crate::{
 #[derive(Default)]
 pub struct Module {
     globals: Vec<Global>,
-    functions: Vec<Fnc>,
+    pub(crate) functions: Vec<Fnc>,
 }
 impl Module {
     pub fn add_global(
@@ -78,4 +78,4 @@ pub enum ModuleBuilderError {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct GlobalRef(usize);
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct FuncRef(usize);
+pub struct FuncRef(pub(crate) usize);

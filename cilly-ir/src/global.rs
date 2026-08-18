@@ -1,5 +1,15 @@
 use std::{fmt::Write, num::NonZeroU32};
 
+use nom::{
+    Parser,
+    branch::alt,
+    bytes::complete::{tag, take_while_m_n},
+    character::complete::satisfy,
+    combinator::{map, map_res, value},
+    multi::many0,
+    sequence::delimited,
+};
+
 use crate::{GlobalIdent, Linkage, ModuleBuilderError};
 
 #[qparse_macros::qparse("")]
@@ -18,14 +28,14 @@ pub(crate) struct Global {
     pub(crate) align: NonZeroU32,
 }
 #[qparse_macros::qparse("")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConstInitFrag {
     #[qparse("ptr {0}")]
     Ptr(GlobalIdent),
-    #[qparse("c\"{0}\"")]
+    #[qparse("{0}")]
     ByteRun(ByteRun),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ByteRun {
     bytes: Vec<u8>,
 }
@@ -37,7 +47,7 @@ impl std::fmt::Display for ByteRun {
             if c.is_ascii_alphanumeric() || matches!(c, ' ' | ':' | ';') {
                 f.write_char(c)?;
             } else {
-                write!(f, "\\{b:x}").unwrap();
+                write!(f, "\\{b:02x}")?;
             }
         }
         f.write_char('"')?;
@@ -46,10 +56,31 @@ impl std::fmt::Display for ByteRun {
 }
 impl qparse::Parseable<qparse::Display> for ByteRun {
     fn parse(input: &str) -> nom::IResult<&str, Self> {
-        todo!()
+        use nom::Parser;
+        map(
+            delimited(
+                tag("c\""),
+                many0(alt((
+                    (
+                        tag("\\"),
+                        map_res(
+                            take_while_m_n(2, 2, |c: char| c.is_ascii_hexdigit()),
+                            |s: &str| u8::from_str_radix(s, 16),
+                        ),
+                    )
+                        .map(|(_prefix, val)| val),
+                    map(satisfy(|c| c.is_ascii() && c != '"' && c != '\\'), |c| {
+                        c as u8
+                    }),
+                ))),
+                tag("\""),
+            ),
+            |bytes| ByteRun { bytes },
+        )
+        .parse(input)
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ConstInit {
     /// A constant initializer is composed of the following
     fragments: Vec<ConstInitFrag>,
@@ -93,7 +124,7 @@ impl std::fmt::Display for ConstInit {
 }
 impl qparse::Parseable<qparse::Display> for ConstInit {
     fn parse(input: &str) -> nom::IResult<&str, Self> {
-        todo!()
+        alt((value(Self { fragments: vec![] }, tag("{}")),)).parse(input)
     }
 }
 
