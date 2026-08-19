@@ -1,20 +1,21 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    AttrAndTy, ConstInit, GlobalIdent, InputArgs, Linkage, SourceLocation, TyAndAttr, func::Fnc, global::Global,
+    AttrAndTy, ConstInit, FunctionBuilder, GlobalIdent, InputArgs, Linkage, Locals, SourceLocation,
+    TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default)]
 pub struct Module {
     globals: Vec<Global>,
     pub(crate) functions: Vec<Fnc>,
 }
-impl std::fmt::Display for Module{
+impl std::fmt::Display for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for global in &self.globals{
-            writeln!(f,"{global}")?;
+        for global in &self.globals {
+            writeln!(f, "{global}")?;
         }
-        for func in &self.functions{
-            writeln!(f,"{func}")?;
+        for func in &self.functions {
+            writeln!(f, "{func}")?;
         }
         Ok(())
     }
@@ -79,12 +80,44 @@ impl Module {
         });
         Ok(FuncRef(fnc))
     }
-    pub fn set_fn_src_loc(&mut self, fnc:FuncRef, file:impl Into<String>, col:u32, line:u32)->Result<(),ModuleBuilderError>{
-        let fnc = self.functions.get_mut(fnc.0).ok_or(ModuleBuilderError::InvalidFuncRef{fnc})?;
+    pub fn fn_builder(&mut self, id: FuncRef) -> Result<FunctionBuilder, ModuleBuilderError> {
+        let fnc = self
+            .functions
+            .get(id.0 as usize)
+            .ok_or(ModuleBuilderError::InvalidFuncRef { fnc: id })?;
+        let Fnc::Decl { inputs, .. } = &fnc else {
+            return Err(ModuleBuilderError::FuncFinished);
+        };
+        let mut builder = FunctionBuilder {
+            id,
+            fnc: fnc.clone(),
+            locals: Locals::empty(),
+            bbs: vec![],
+            ssas: vec![],
+            pos: None,
+        };
+        for arg in &inputs.args {
+            builder.alloc_ssa_id(arg.ty.clone());
+        }
+        Ok(builder)
+    }
+    pub fn set_fn_src_loc(
+        &mut self,
+        fnc: FuncRef,
+        file: impl Into<String>,
+        col: u32,
+        line: u32,
+    ) -> Result<(), ModuleBuilderError> {
+        let fnc = self
+            .functions
+            .get_mut(fnc.0)
+            .ok_or(ModuleBuilderError::InvalidFuncRef { fnc })?;
         let file = GlobalIdent::new(file).ok_or(ModuleBuilderError::InvalidSourceLoc)?;
-        let src = SourceLocation{opt:Some(crate::SourceLocationInner { file, line, col })};
-        match fnc{
-            Fnc::Def { src_loc, .. }| Fnc::Decl { src_loc,.. } => *src_loc = src,
+        let src = SourceLocation {
+            opt: Some(crate::SourceLocationInner { file, line, col }),
+        };
+        match fnc {
+            Fnc::Def { src_loc, .. } | Fnc::Decl { src_loc, .. } => *src_loc = src,
         }
         Ok(())
     }
@@ -96,8 +129,9 @@ pub enum ModuleBuilderError {
     GlobalInitAddrByteNonzero,
     InvalidFuncRef { fnc: FuncRef },
     InvalidSourceLoc,
+    FuncFinished,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct GlobalRef(usize);
-#[derive(Clone, Copy, PartialEq, Eq,Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FuncRef(pub(crate) usize);

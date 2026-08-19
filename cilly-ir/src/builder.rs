@@ -4,13 +4,14 @@ use crate::{
     AllocA, Binop, Body, Fnc, FuncRef, InstrList, Instruction, Label, Local, Locals, Module,
     Operand, SSAVal, Type,
 };
+
 pub struct FunctionBuilder {
-    id: FuncRef,
-    fnc: Fnc,
-    locals: Locals,
-    bbs: Vec<BasicBlock>,
-    ssas: Vec<Type>,
-    pos: Option<(Label, usize)>,
+    pub(crate) id: FuncRef,
+    pub(crate) fnc: Fnc,
+    pub(crate) locals: Locals,
+    pub(crate) bbs: Vec<BasicBlock>,
+    pub(crate) ssas: Vec<Type>,
+    pub(crate) pos: Option<(Label, usize)>,
 }
 impl FunctionBuilder {
     pub fn return_type(&self) -> &Type {
@@ -84,17 +85,30 @@ impl FunctionBuilder {
             Ok(())
         }
     }
+
     pub fn build_ret(&mut self, val: Option<Operand>) -> Result<(), BuilderError> {
-        if val.is_none() {
-            if !self.return_type().is_void() {
-                Err(BuilderError::VoidRetInNonVoidFnc)?;
+        match val {
+            None => {
+                if !self.return_type().is_void() {
+                    Err(BuilderError::VoidRetInNonVoidFnc)?;
+                }
+                self.build_term(Termiantor::VoidRet)?;
             }
-            self.build_term(Termiantor::VoidRet)?;
+            Some(val) => {
+                if self.get_type(&val)? != self.return_type() {
+                    Err(BuilderError::RetTypeMismatch {
+                        got: self.get_type(&val)?.clone(),
+                        expected: self.return_type().clone(),
+                    })?;
+                }
+                self.build_term(Termiantor::Ret(val))?;
+            }
         }
-        todo!()
+
+        Ok(())
     }
     // Helpers
-    fn alloc_ssa_id(&mut self, ty: Type) -> SSAVal {
+    pub(crate) fn alloc_ssa_id(&mut self, ty: Type) -> SSAVal {
         let id = self.ssas.len() as u32;
         self.ssas.push(ty);
         SSAVal(id)
@@ -203,6 +217,18 @@ impl FunctionBuilder {
         });
         Ok(Operand::SSA(ssa_id))
     }
+    pub fn get_param(&mut self, param: u32) -> Result<Operand, BuilderError> {
+        let Fnc::Decl { inputs, .. } = &self.fnc else {
+            todo!()
+        };
+        if param as usize >= inputs.args.len() {
+            return Err(BuilderError::ParamOutOfRange {
+                param,
+                len: inputs.args.len() as u32,
+            });
+        }
+        Ok(Operand::SSA(SSAVal(param)))
+    }
     pub fn add_local(&mut self, ty: Type) -> Result<Local, BuilderError> {
         todo!()
     }
@@ -232,13 +258,14 @@ impl FunctionBuilder {
 fn to_body(bbs: Vec<BasicBlock>) -> Body {
     todo!()
 }
-struct BasicBlock {
+pub(crate) struct BasicBlock {
     instrs: InstrList,
     term: Option<Termiantor>,
 }
 #[derive(Debug, Clone)]
 enum Termiantor {
     VoidRet,
+    Ret(Operand),
 }
 #[derive(Debug)]
 pub enum BuilderError {
@@ -271,5 +298,13 @@ pub enum BuilderError {
     BinopTypeMismatch {
         lhs_ty: Type,
         rhs_ty: Type,
+    },
+    ParamOutOfRange {
+        param: u32,
+        len: u32,
+    },
+    RetTypeMismatch {
+        got: Type,
+        expected: Type,
     },
 }

@@ -1,4 +1,5 @@
 #[qparse_macros::qparse("")]
+#[derive(Clone, Copy)]
 pub enum Linkage {
     #[qparse("external")]
     External,

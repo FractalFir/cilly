@@ -1,11 +1,5 @@
 use arbitrary::Arbitrary;
-use nom::{
-    Parser,
-    character::complete::multispace0,
-    multi::{many0, many1},
-    sequence::delimited,
-};
-use qparse::Parseable;
+use nom::{Parser, character::complete::multispace0, multi::many1};
 
 use crate::{Instruction, Operand, PlaceHolder, Type, comment};
 #[derive(Clone, Debug)]
@@ -145,12 +139,16 @@ impl<'a> Arbitrary<'a> for Body {
 
 #[test]
 fn body_fmt() {
+    use qparse::Parseable;
     println!(
         "{:?}",
-        <Instruction as Parseable<qparse::Display>>::parse("")
+        <Instruction as qparse::Parseable<qparse::Display>>::parse("")
     );
     println!("{:?}", comment(""));
-    println!("{:?}", <InstrList as Parseable<qparse::Display>>::parse(""));
+    println!(
+        "{:?}",
+        <InstrList as qparse::Parseable<qparse::Display>>::parse("")
+    );
     crate::arbitrary::<Body>(
         |b| {
             let mut body_str = b.to_string();

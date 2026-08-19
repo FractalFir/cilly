@@ -19,7 +19,7 @@ pub enum Attr {
     /// exactly the same way a given C type would be passed on this target.
     LikeC(CType),
 }
-#[derive(Clone, Debug, Arbitrary,Default)]
+#[derive(Clone, Debug, Arbitrary, Default)]
 pub(crate) struct AttrList {
     attrs: Vec<Attr>,
 }

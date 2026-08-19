@@ -4,21 +4,33 @@ use nom::{Parser, character::complete::multispace0, multi::many0};
 
 use crate::{SSAVal, Type, comment};
 #[qparse_macros::qparse("{ssa_id} = alloca i8, i32 {size}, align {align}")]
+#[derive(Clone)]
 pub(crate) struct AllocA {
     pub(crate) ssa_id: SSAVal,
     pub(crate) size: NonZeroU32,
     pub(crate) align: NonZeroU32,
 }
 #[qparse_macros::qparse("%l{local_id} = alloca {ty}")]
+#[derive(Clone)]
 pub(crate) struct LocalDef {
     pub(crate) local_id: u32,
     pub(crate) ty: Type,
 }
+#[derive(Clone)]
 pub(crate) struct Locals {
     /// alloca - stack allocation, whose address can be taken.
     pub(crate) allocas: Vec<AllocA>,
     /// local - typed local var, whose address can't be taken. Used for phis.
     pub(crate) locals: Vec<LocalDef>,
+}
+
+impl Locals {
+    pub(crate) fn empty() -> Self {
+        Self {
+            allocas: vec![],
+            locals: vec![],
+        }
+    }
 }
 impl std::fmt::Display for Locals {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
