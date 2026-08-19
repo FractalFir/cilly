@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 
+use arbitrary::Arbitrary;
 use nom::multi::many0;
 
 use crate::CType;
 
 #[qparse_macros::qparse("")]
+#[derive(Clone, Debug, Arbitrary)]
 pub enum Attr {
     #[qparse("zext ")]
     Zext,
@@ -17,6 +19,7 @@ pub enum Attr {
     /// exactly the same way a given C type would be passed on this target.
     LikeC(CType),
 }
+#[derive(Clone, Debug, Arbitrary,Default)]
 pub(crate) struct AttrList {
     attrs: Vec<Attr>,
 }

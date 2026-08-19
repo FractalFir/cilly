@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use arbitrary::Arbitrary;
 use nom::{
     bytes::complete::tag, character::complete::multispace0, multi::separated_list0,
     sequence::delimited,
@@ -21,7 +22,7 @@ pub(crate) enum Fnc {
     },
     #[qparse(
         "{src_loc}define {linkage} {output} {name} ({inputs}){{
-{locals}{body} }}"
+{locals}{body}}}"
     )]
     Def {
         src_loc: SourceLocation,
@@ -37,11 +38,13 @@ pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
 }
 #[qparse("{attr}{ty}")]
+#[derive(Clone, Debug, Arbitrary)]
 pub(crate) struct AttrAndTy {
     pub(crate) attr: AttrList,
     pub(crate) ty: Type,
 }
 #[qparse("{ty} {attr}")]
+#[derive(Clone, Debug, Arbitrary)]
 pub struct TyAndAttr {
     pub(crate) attr: AttrList,
     pub(crate) ty: Type,

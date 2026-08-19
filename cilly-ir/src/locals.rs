@@ -2,10 +2,10 @@ use std::num::NonZeroU32;
 
 use nom::{Parser, character::complete::multispace0, multi::many0};
 
-use crate::{Type, comment};
-#[qparse_macros::qparse("%v{ssa_id} = alloca i8, i32 {size}, align {align}")]
+use crate::{SSAVal, Type, comment};
+#[qparse_macros::qparse("{ssa_id} = alloca i8, i32 {size}, align {align}")]
 pub(crate) struct AllocA {
-    pub(crate) ssa_id: u32,
+    pub(crate) ssa_id: SSAVal,
     pub(crate) size: NonZeroU32,
     pub(crate) align: NonZeroU32,
 }

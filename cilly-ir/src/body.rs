@@ -1,15 +1,55 @@
 use arbitrary::Arbitrary;
-use nom::{Parser, character::complete::multispace0, multi::many1, sequence::delimited};
+use nom::{
+    Parser,
+    character::complete::multispace0,
+    multi::{many0, many1},
+    sequence::delimited,
+};
 use qparse::Parseable;
 
-use crate::{Operand, PlaceHolder, Type};
+use crate::{Instruction, Operand, PlaceHolder, Type, comment};
+#[derive(Clone, Debug)]
+pub(crate) struct InstrList {
+    pub(crate) instrs: Vec<Instruction>,
+}
+impl<'a> Arbitrary<'a> for InstrList {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut instrs = vec![Instruction::arbitrary(u)?];
+        instrs.extend(
+            u.arbitrary_iter::<Instruction>()?
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        Ok(Self { instrs })
+    }
 
-pub(crate) type InstrList = PlaceHolder;
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        arbitrary::size_hint::and(
+            <Instruction as Arbitrary>::size_hint(depth),
+            <Vec<Instruction> as Arbitrary>::size_hint(depth),
+        )
+    }
+}
+impl std::fmt::Display for InstrList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for instr in &self.instrs {
+            writeln!(f, "{instr}")?;
+        }
+        Ok(())
+    }
+}
+impl qparse::Parseable<qparse::Display> for InstrList {
+    fn parse(input: &str) -> nom::IResult<&str, Self> {
+        many1((multispace0, Instruction::parse, comment).map(|(_, i, _)| i))
+            .map(|instrs| Self { instrs })
+            .parse(input)
+    }
+}
+
 pub(crate) type Local = PlaceHolder;
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
 #[qparse_macros::qparse("l{id:x}")]
 pub struct Label {
-    id: u32,
+    pub(crate) id: u32,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Body {
@@ -29,8 +69,9 @@ impl qparse::Parseable<qparse::Display> for Body {
             (
                 multispace0,
                 <CFGElem as qparse::Parseable<qparse::Display>>::parse,
+                multispace0,
             )
-                .map(|(_, e)| e),
+                .map(|(_, e, _)| e),
         )
         .map(|elems| Body { elems })
         .parse(input)
@@ -39,17 +80,16 @@ impl qparse::Parseable<qparse::Display> for Body {
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, Debug)]
 pub(crate) enum CFGElem {
-    #[qparse("ret void")]
-    VoidRet,
     #[qparse("ret {ty} {operand}")]
     Return { ty: Type, operand: Operand },
+    #[qparse("ret void")]
+    VoidRet,
     #[qparse("{instrs}")]
     Instructions { instrs: InstrList },
     #[qparse(
         "br i1 {cond}, label %if_body_{label}, label %if_join_{label}
 if_body_{label}:
-{body}
-br label %if_join_{label}
+{body}br label %if_join_{label}
 if_join_{label}:"
     )]
     If {
@@ -60,11 +100,9 @@ if_join_{label}:"
     #[qparse(
         "br i1 {cond}, label %if_then_{label}, label %if_else_{label}
 if_then_{label}:
-{then}
-br label %if_join_{label}
+{then}br label %if_join_{label}
 if_else_{label}:
-{els}
-br label %if_join_{label}
+{els}br label %if_join_{label}
 if_join_{label}:"
     )]
     Elif {
@@ -77,8 +115,7 @@ if_join_{label}:"
         "%cond_{label} = load i1, ptr {cond}
 br i1 %cond_{label}, label %loop_body_{label}, label %loop_exit_{label}
 loop_body_{label}:
-{body}
-%cond2_{label} = load i1, ptr {cond}
+{body}%cond2_{label} = load i1, ptr {cond}
 br i1 %cond2_{label}, label %loop_body_{label}, label %loop_exit_{label}
 loop_exit_{label}:"
     )]
@@ -108,18 +145,21 @@ impl<'a> Arbitrary<'a> for Body {
 
 #[test]
 fn body_fmt() {
+    println!(
+        "{:?}",
+        <Instruction as Parseable<qparse::Display>>::parse("")
+    );
+    println!("{:?}", comment(""));
+    println!("{:?}", <InstrList as Parseable<qparse::Display>>::parse(""));
     crate::arbitrary::<Body>(
         |b| {
-            let body_str = b.to_string();
+            let mut body_str = b.to_string();
+            eprintln!("body_str:{body_str}");
             if let Err(err) = Body::parse(&body_str) {
                 panic!("{body_str} {err:?}");
             }
-            let mut reparsed = Body::parse(&body_str)
-                .unwrap()
-                .1
-                .to_string()
-                .replace("\n", " ");
-            let mut body_str = body_str.replace("\n", " ");
+            let mut reparsed = Body::parse(&body_str).unwrap().1.to_string();
+
             if reparsed != *body_str {
                 while reparsed.chars().last() == body_str.chars().last() && !body_str.is_empty() {
                     reparsed.remove(reparsed.char_indices().next_back().unwrap().0);
@@ -132,6 +172,7 @@ fn body_fmt() {
             }
             assert_eq!(reparsed, body_str);
         },
-        64,
+        256,
+        8,
     );
 }

@@ -1,19 +1,27 @@
-use arbitrary::Arbitrary;
+use arbitrary::{Arbitrary, Unstructured};
 use nom::{
     Parser,
     branch::alt,
-    bytes::{complete::take, tag},
+    bytes::complete::{tag, take},
     character::complete::satisfy,
     combinator::{map, map_res},
     multi::many0,
     sequence::preceded,
 };
 use std::fmt::Write;
-#[derive(Clone, Arbitrary, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct GlobalIdent {
     name: String,
 }
-
+impl<'a> Arbitrary<'a> for GlobalIdent {
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut name: String = u.arbitrary()?;
+        if name.is_empty() {
+            name.push('a');
+        }
+        Ok(Self { name })
+    }
+}
 impl GlobalIdent {
     pub fn new(name: impl Into<String>) -> Option<Self> {
         let name = name.into();
@@ -58,8 +66,20 @@ fn write_escaped(f: &mut std::fmt::Formatter<'_>, c: char) -> std::fmt::Result {
 }
 impl qparse::Parseable<qparse::Display> for GlobalIdent {
     fn parse(input: &str) -> nom::IResult<&str, Self> {
-        (tag("@"), ident_char(true), many0(ident_char(false)))
-            .map(|(_, prefix, body)| {
+        (
+            tag("@"),
+            alt((
+                (ident_char(true), many0(ident_char(false))),
+                (
+                    tag("\""),
+                    ident_char(true),
+                    many0(ident_char(false)),
+                    tag("\""),
+                )
+                    .map(|(_, a, b, _)| (a, b)),
+            )),
+        )
+            .map(|(_, (prefix, body))| {
                 std::iter::once(prefix)
                     .chain(body)
                     .flatten()
@@ -73,7 +93,7 @@ impl qparse::Parseable<qparse::Display> for GlobalIdent {
 fn escaped_byte(input: &str) -> nom::IResult<&str, u8> {
     map_res(
         preceded(tag("\\"), take(2usize)),
-        <u8 as qparse::Parseable<qparse::Display>>::parse,
+        <u8 as qparse::Parseable<qparse::LowerHex>>::parse,
     )
     .map(|(_, val)| val)
     .parse(input)

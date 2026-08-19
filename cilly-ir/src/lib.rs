@@ -30,6 +30,12 @@ mod body;
 pub use body::*;
 mod builder;
 pub use builder::*;
+mod instr;
+pub use instr::*;
+mod operand;
+pub use operand::*;
+#[cfg(test)]
+mod tests;
 #[qparse_macros::qparse("PlaceHolder")]
 #[derive(Default, PartialEq, Eq, Arbitrary, Clone, Debug)]
 pub(crate) struct PlaceHolder;
@@ -64,14 +70,7 @@ pub(crate) struct SourceLocationInner {
     line: u32,
     col: u32,
 }
-#[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, PartialEq, Eq, Debug)]
-pub enum Operand {
-    #[qparse("%v{0}")]
-    SSA(u32),
-    #[qparse("{0}")]
-    Global(GlobalIdent),
-}
+
 pub(crate) fn comment(input: &str) -> IResult<&str, ()> {
     use nom::Parser;
     alt((
@@ -81,9 +80,9 @@ pub(crate) fn comment(input: &str) -> IResult<&str, ()> {
     .parse(input)
 }
 #[cfg(test)]
-pub fn arbitrary<T: for<'a> Arbitrary<'a>>(f: impl Fn(T), og_iters: usize) {
+pub fn arbitrary<T: for<'a> Arbitrary<'a>>(f: impl Fn(T), og_iters: usize, budget: usize) {
     let mut rng = rand::rngs::SmallRng::from_seed(*b"THIS IS A SEED. IT SEEDS THE RNG");
-    let mut buff = vec![0; 1024];
+    let mut buff = vec![0; budget];
     let mut c = 0;
     let mut iters = og_iters;
     while iters > 0 {

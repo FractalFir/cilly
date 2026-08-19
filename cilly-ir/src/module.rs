@@ -1,12 +1,23 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    AttrAndTy, ConstInit, GlobalIdent, InputArgs, Linkage, TyAndAttr, func::Fnc, global::Global,
+    AttrAndTy, ConstInit, GlobalIdent, InputArgs, Linkage, SourceLocation, TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default)]
 pub struct Module {
     globals: Vec<Global>,
     pub(crate) functions: Vec<Fnc>,
+}
+impl std::fmt::Display for Module{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for global in &self.globals{
+            writeln!(f,"{global}")?;
+        }
+        for func in &self.functions{
+            writeln!(f,"{func}")?;
+        }
+        Ok(())
+    }
 }
 impl Module {
     pub fn add_global(
@@ -68,14 +79,25 @@ impl Module {
         });
         Ok(FuncRef(fnc))
     }
+    pub fn set_fn_src_loc(&mut self, fnc:FuncRef, file:impl Into<String>, col:u32, line:u32)->Result<(),ModuleBuilderError>{
+        let fnc = self.functions.get_mut(fnc.0).ok_or(ModuleBuilderError::InvalidFuncRef{fnc})?;
+        let file = GlobalIdent::new(file).ok_or(ModuleBuilderError::InvalidSourceLoc)?;
+        let src = SourceLocation{opt:Some(crate::SourceLocationInner { file, line, col })};
+        match fnc{
+            Fnc::Def { src_loc, .. }| Fnc::Decl { src_loc,.. } => *src_loc = src,
+        }
+        Ok(())
+    }
 }
 #[derive(Debug)]
 pub enum ModuleBuilderError {
     InvalidGlobalRef,
     GlobalInitNotEnoughBytes,
     GlobalInitAddrByteNonzero,
+    InvalidFuncRef { fnc: FuncRef },
+    InvalidSourceLoc,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct GlobalRef(usize);
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq,Debug)]
 pub struct FuncRef(pub(crate) usize);
