@@ -1,6 +1,6 @@
 use arbitrary::Arbitrary;
 
-use crate::{AttrAndTy, Operand, PlaceHolder, SSAVal, Type};
+use crate::{AttrAndTy, Local, Operand, PlaceHolder, SSAVal, Type};
 pub type CallArgs = PlaceHolder;
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy, Debug, Arbitrary)]
@@ -11,10 +11,29 @@ pub(crate) enum Binop {
     Sub,
     #[qparse("mul")]
     Mul,
+    #[qparse("xor")]
+    Xor,
 }
+#[qparse_macros::qparse("")]
+#[derive(Clone, Copy, Debug, Arbitrary)]
+pub(crate) enum ICmp {
+    #[qparse("eq")]
+    Eq,
+    #[qparse("ne")]
+    Ne,
+}
+
 #[qparse_macros::qparse("")]
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
+    #[qparse("{dst} = icmp {cmp} {ty} {lhs}, {rhs}")]
+    ICmp{
+          dst: SSAVal,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+        cmp: ICmp,
+    },
     #[qparse("{dst} = {op} {ty} {lhs} {rhs}")]
     Binop {
         dst: SSAVal,
@@ -35,4 +54,16 @@ pub(crate) enum Instruction {
         callee: Operand,
         call_args: CallArgs,
     },
+    #[qparse("{dst} = load {ty}, ptr {local}")]
+    LoadLocal{
+        dst:SSAVal,
+        local:Local,
+        ty:Type,
+    },
+    #[qparse("store {ty} {val}, ptr {local}")]
+    StoreLocal{
+        local:Local,
+        ty:Type,
+        val:Operand,
+    }
 }

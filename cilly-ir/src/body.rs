@@ -39,7 +39,12 @@ impl qparse::Parseable<qparse::Display> for InstrList {
     }
 }
 
-pub(crate) type Local = PlaceHolder;
+
+#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
+#[qparse_macros::qparse("%l{id:x}")]
+pub struct Local {
+    pub(crate) id: u32,
+}
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
 #[qparse_macros::qparse("l{id:x}")]
 pub struct Label {

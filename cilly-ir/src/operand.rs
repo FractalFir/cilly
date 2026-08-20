@@ -1,6 +1,8 @@
+use std::num::NonZeroU8;
+
 use arbitrary::Arbitrary;
 
-use crate::GlobalIdent;
+use crate::{BuilderError, GlobalIdent, Type};
 
 #[qparse_macros::qparse("%v{0}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
@@ -12,4 +14,30 @@ pub enum Operand {
     SSA(SSAVal),
     #[qparse("{0}")]
     Global(GlobalIdent),
+    #[qparse("{0}")]
+    Constant(Constant),
+}
+#[qparse_macros::qparse("")]
+#[derive(Clone, Arbitrary, PartialEq, Eq, Debug)]
+pub enum Constant{
+    #[qparse("true")]
+    True,
+    #[qparse("false")]
+    False,
+    #[qparse("{0}")]
+    Int(i128)
+}
+impl Constant{
+    pub fn get_ty<'ty>(&self, hint_ty:&'ty Type)->Result<&'ty Type,BuilderError>{
+        const I1_TY:Type = Type::Int { bitwidth: NonZeroU8::new(1).unwrap() };
+        match self{
+            Constant::False | Constant::True => Ok(&I1_TY),
+            Constant::Int(int)=>{
+                if !hint_ty.is_int(){
+                    return Err(BuilderError::ConstIntWhereNonIntExpected{hint_ty:hint_ty.clone()});
+                }
+                Ok(hint_ty)
+            }
+        }
+    }
 }
