@@ -27,8 +27,8 @@ pub(crate) enum ICmp {
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
     #[qparse("{dst} = icmp {cmp} {ty} {lhs}, {rhs}")]
-    ICmp{
-          dst: SSAVal,
+    ICmp {
+        dst: SSAVal,
         ty: Type,
         lhs: Operand,
         rhs: Operand,
@@ -55,15 +55,11 @@ pub(crate) enum Instruction {
         call_args: CallArgs,
     },
     #[qparse("{dst} = load {ty}, ptr {local}")]
-    LoadLocal{
-        dst:SSAVal,
-        local:Local,
-        ty:Type,
-    },
+    LoadLocal { dst: SSAVal, local: Local, ty: Type },
     #[qparse("store {ty} {val}, ptr {local}")]
-    StoreLocal{
-        local:Local,
-        ty:Type,
-        val:Operand,
-    }
+    StoreLocal {
+        local: Local,
+        ty: Type,
+        val: Operand,
+    },
 }

@@ -1,8 +1,8 @@
-use std::num::NonZeroU32;
+use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
     AllocA, Binop, Body, Fnc, FuncRef, InstrList, Instruction, Label, Local, Locals, Module,
-    Operand, SSAVal, Type,
+    Operand, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -85,11 +85,26 @@ impl FunctionBuilder {
             Ok(())
         }
     }
-    pub fn build_br(&mut self, label:Label)-> Result<(), BuilderError> {
+    pub fn build_br(&mut self, label: Label) -> Result<(), BuilderError> {
         self.check_label(label)?;
         self.build_term(Termiantor::Br(label))
     }
-    pub fn build_condbr(&mut self,cond:Operand, then:Label,els:Label)-> Result<(), BuilderError> {
+    pub fn build_condbr(
+        &mut self,
+        cond: Operand,
+        then: Label,
+        els: Label,
+    ) -> Result<(), BuilderError> {
+        let i1 = Type::Int {
+            bitwidth: NonZeroU8::new(1).unwrap(),
+        };
+        let got = self.get_type(&cond, &i1)?;
+        if *got != i1 {
+            return Err(BuilderError::CondBrCondNotI1 {
+                cond,
+                got: got.clone(),
+            });
+        }
         self.check_label(then)?;
         self.check_label(els)?;
         self.build_term(Termiantor::BrCond { cond, then, els })
@@ -104,9 +119,9 @@ impl FunctionBuilder {
             }
             Some(val) => {
                 let ret_ty = self.return_type();
-                if self.get_type(&val,ret_ty)? != self.return_type() {
+                if self.get_type(&val, ret_ty)? != self.return_type() {
                     Err(BuilderError::RetTypeMismatch {
-                        got: self.get_type(&val,ret_ty)?.clone(),
+                        got: self.get_type(&val, ret_ty)?.clone(),
                         expected: self.return_type().clone(),
                     })?;
                 }
@@ -117,9 +132,8 @@ impl FunctionBuilder {
         Ok(())
     }
     // Helpers
-    fn check_label(&self,block:Label)->Result<(),BuilderError>{
-        self
-            .bbs
+    fn check_label(&self, block: Label) -> Result<(), BuilderError> {
+        self.bbs
             .get(block.id as usize)
             .ok_or(BuilderError::BlockLabelInvalid { block })?;
         Ok(())
@@ -145,8 +159,8 @@ impl FunctionBuilder {
         lhs: Operand,
         rhs: Operand,
     ) -> Result<Operand, BuilderError> {
-        let lhs_ty = self.get_type(&lhs,&ty)?;
-        let rhs_ty = self.get_type(&rhs,&ty)?;
+        let lhs_ty = self.get_type(&lhs, &ty)?;
+        let rhs_ty = self.get_type(&rhs, &ty)?;
         if lhs_ty != rhs_ty {
             return Err(BuilderError::BinopTypeMismatch {
                 lhs_ty: lhs_ty.clone(),
@@ -173,12 +187,16 @@ impl FunctionBuilder {
         if !ty.is_int_or_vecint() {
             return Err(BuilderError::IntOpTypeNotIntOrVecInt { ty });
         }
-        if !self.get_type(&lhs,&ty)?.is_int_or_vecint() {
+        if !self.get_type(&lhs, &ty)?.is_int_or_vecint() {
             return Err(BuilderError::IntOpOperandNotIntOrVecInt { ty });
         }
         self.build_binop(op, ty, lhs, rhs)
     }
-    pub fn get_type<'ty,'s:'ty>(&'s self, op: &Operand,implicit_ty:&'ty Type) -> Result<&'ty Type, BuilderError> {
+    pub fn get_type<'ty, 's: 'ty>(
+        &'s self,
+        op: &Operand,
+        implicit_ty: &'ty Type,
+    ) -> Result<&'ty Type, BuilderError> {
         const PTR_TY: Type = Type::Ptr;
         match op {
             Operand::SSA(ssaval) => {
@@ -189,7 +207,7 @@ impl FunctionBuilder {
                     })
             }
             Operand::Global(_) => Ok(&PTR_TY),
-            Operand::Constant(cst)=>cst.get_ty(implicit_ty),
+            Operand::Constant(cst) => cst.get_ty(implicit_ty),
         }
     }
     // Binops
@@ -247,7 +265,7 @@ impl FunctionBuilder {
         Ok(Operand::SSA(SSAVal(param)))
     }
     pub fn add_local(&mut self, ty: Type) -> Result<Local, BuilderError> {
-        if ty.is_void(){
+        if ty.is_void() {
             return Err(BuilderError::VoidLocal);
         }
         Ok(self.locals.add_local(ty))
@@ -263,7 +281,7 @@ impl FunctionBuilder {
         else {
             panic!();
         };
-        let body = to_body(self.bbs, &mut self.locals);
+        let body = to_body(self.bbs, &mut self.locals, &mut self.ssas, &output.ty);
         *module.functions.get_mut(self.id.0).unwrap() = Fnc::Def {
             src_loc,
             linkage,
@@ -276,32 +294,27 @@ impl FunctionBuilder {
     }
 }
 
-fn to_body(bbs: Vec<BasicBlock>, locals:&mut Locals) -> Body {
-   
-    todo!()
-}
 pub(crate) struct BasicBlock {
-    instrs: InstrList,
-    term: Option<Termiantor>,
+    pub(crate) instrs: InstrList,
+    pub(crate) term: Option<Termiantor>,
 }
 #[derive(Debug, Clone)]
-enum Termiantor {
+pub(crate) enum Termiantor {
     VoidRet,
     Ret(Operand),
     Br(Label),
-    BrCond{
-        cond:Operand,
-        then:Label,
-        els:Label,
-    }
+    BrCond {
+        cond: Operand,
+        then: Label,
+        els: Label,
+    },
 }
-impl Termiantor{
-    pub fn sucessors(&self)->Vec<Label>{
-        match self{
-            Termiantor::VoidRet|
-            Termiantor::Ret(_) => vec![],
+impl Termiantor {
+    pub fn sucessors(&self) -> Vec<Label> {
+        match self {
+            Termiantor::VoidRet | Termiantor::Ret(_) => vec![],
             Termiantor::Br(label) => vec![*label],
-            Termiantor::BrCond { cond, then, els } => vec![*then,*els],
+            Termiantor::BrCond { cond, then, els } => vec![*then, *els],
         }
     }
 }
@@ -346,5 +359,15 @@ pub enum BuilderError {
         expected: Type,
     },
     VoidLocal,
-    ConstIntWhereNonIntExpected { hint_ty: Type },
+    ConstIntWhereNonIntExpected {
+        hint_ty: Type,
+    },
+    ConstIntOutOfRange {
+        val: i128,
+        bitwidth: std::num::NonZero<u8>,
+    },
+    CondBrCondNotI1 {
+        cond: Operand,
+        got: Type,
+    },
 }

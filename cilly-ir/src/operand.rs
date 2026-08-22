@@ -19,22 +19,35 @@ pub enum Operand {
 }
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, PartialEq, Eq, Debug)]
-pub enum Constant{
+pub enum Constant {
     #[qparse("true")]
     True,
     #[qparse("false")]
     False,
     #[qparse("{0}")]
-    Int(i128)
+    Int(i128),
 }
-impl Constant{
-    pub fn get_ty<'ty>(&self, hint_ty:&'ty Type)->Result<&'ty Type,BuilderError>{
-        const I1_TY:Type = Type::Int { bitwidth: NonZeroU8::new(1).unwrap() };
-        match self{
+impl Constant {
+    pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
+        const I1_TY: Type = Type::Int {
+            bitwidth: NonZeroU8::new(1).unwrap(),
+        };
+        match self {
             Constant::False | Constant::True => Ok(&I1_TY),
-            Constant::Int(int)=>{
-                if !hint_ty.is_int(){
-                    return Err(BuilderError::ConstIntWhereNonIntExpected{hint_ty:hint_ty.clone()});
+            Constant::Int(int) => {
+                let Type::Int { bitwidth } = hint_ty else {
+                    return Err(BuilderError::ConstIntWhereNonIntExpected {
+                        hint_ty: hint_ty.clone(),
+                    });
+                };
+                let bits = bitwidth.get();
+                let int_ty_min = -(1i128 << (bits - 1));
+                let int_ty_max = ((1u128 << bits) - 1) as i128;
+                if int_ty_min <= *int && *int <= int_ty_max {
+                    return Err(BuilderError::ConstIntOutOfRange {
+                        val: *int,
+                        bitwidth: *bitwidth,
+                    });
                 }
                 Ok(hint_ty)
             }

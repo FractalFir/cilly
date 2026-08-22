@@ -13,7 +13,7 @@ pub(crate) struct AllocA {
 #[qparse_macros::qparse("{local} = alloca {ty}")]
 #[derive(Clone)]
 pub(crate) struct LocalDef {
-    pub(crate) local:Local,
+    pub(crate) local: Local,
     pub(crate) ty: Type,
 }
 #[derive(Clone)]
@@ -31,9 +31,9 @@ impl Locals {
             locals: vec![],
         }
     }
-    pub(crate) fn add_local(&mut self, ty:Type)->Local{
+    pub(crate) fn add_local(&mut self, ty: Type) -> Local {
         let id = self.locals.len() as u32;
-        let local = Local{id};
+        let local = Local { id };
         self.locals.push(LocalDef { local, ty });
         local
     }

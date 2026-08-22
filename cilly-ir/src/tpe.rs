@@ -16,7 +16,7 @@ impl Type {
     pub fn is_int_or_vecint(&self) -> bool {
         matches!(self, Self::Int { .. })
     }
-     pub fn is_int(&self) -> bool {
+    pub fn is_int(&self) -> bool {
         matches!(self, Self::Int { .. })
     }
     pub fn is_void(&self) -> bool {

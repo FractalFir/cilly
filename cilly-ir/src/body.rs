@@ -1,7 +1,9 @@
+use std::sync::atomic::AtomicU32;
+
 use arbitrary::Arbitrary;
 use nom::{Parser, character::complete::multispace0, multi::many1};
 
-use crate::{Instruction, Operand, PlaceHolder, Type, comment};
+use crate::{Constant, Instruction, Operand, PlaceHolder, Type, comment};
 #[derive(Clone, Debug)]
 pub(crate) struct InstrList {
     pub(crate) instrs: Vec<Instruction>,
@@ -39,20 +41,27 @@ impl qparse::Parseable<qparse::Display> for InstrList {
     }
 }
 
-
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
 #[qparse_macros::qparse("%l{id:x}")]
 pub struct Local {
     pub(crate) id: u32,
 }
-#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug, Hash)]
 #[qparse_macros::qparse("l{id:x}")]
 pub struct Label {
     pub(crate) id: u32,
 }
+impl Label {
+    pub(crate) fn unique() -> Self {
+        static ID: AtomicU32 = AtomicU32::new(u32::MAX / 2);
+        Self {
+            id: ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub(crate) struct Body {
-    elems: Vec<CFGElem>,
+    pub(crate) elems: Vec<CFGElem>,
 }
 impl std::fmt::Display for Body {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -123,6 +132,24 @@ loop_exit_{label}:"
         label: Label,
         body: Body,
     },
+    #[qparse(
+        "br label %dowhile_body_{label}
+dowhile_body_{label}:
+{body}br i1 {cond}, label %dowhile_body_{label}, label %dowhile_exit_{label}
+dowhile_exit_{label}:"
+    )]
+    DoWhile {
+        cond: Operand,
+        label: Label,
+        body: Body,
+    },
+    #[qparse("{0}")]
+    Switch(Switch),
+    #[qparse(
+        "call void @llvm.trap()
+unreachable"
+    )]
+    Trap,
 }
 impl<'a> Arbitrary<'a> for Body {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
@@ -141,7 +168,43 @@ impl<'a> Arbitrary<'a> for Body {
         )
     }
 }
-
+#[derive(Clone, Arbitrary, Debug)]
+pub(crate) struct Switch {
+    pub(crate) default_label: Label,
+    pub(crate) default: Body,
+    pub(crate) ty: Type,
+    pub(crate) cases: Vec<(Constant, Label, Body)>,
+    pub(crate) val: Operand,
+}
+impl std::fmt::Display for Switch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            default,
+            default_label,
+            ty,
+            cases,
+            val,
+        } = self;
+        writeln!(f, "switch {ty} {val}, label %default_{default_label} [")?;
+        for (case, label, _) in cases {
+            writeln!(f, "{ty} {case}, label %case_{label}")?;
+        }
+        writeln!(f, "]")?;
+        for (_, label, body) in cases {
+            writeln!(f, "case_{label}:")?;
+            writeln!(f, "{body}br label %switch_{default_label}_join")?;
+        }
+        writeln!(f, "default_{default_label}:")?;
+        writeln!(f, "{default}br label %switch_{default_label}_join")?;
+        writeln!(f, "switch_{default_label}_join:")?;
+        Ok(())
+    }
+}
+impl qparse::Parseable<qparse::Display> for Switch {
+    fn parse(input: &str) -> nom::IResult<&str, Self> {
+        todo!()
+    }
+}
 #[test]
 fn body_fmt() {
     use qparse::Parseable;

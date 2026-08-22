@@ -31,7 +31,7 @@ fn declare_identity_module() {
     let mut builder = module.fn_builder(ident).unwrap();
     let arg = builder.get_param(0).unwrap();
     assert_eq!(
-        *builder.get_type(&arg,&Type::Void).unwrap(),
+        *builder.get_type(&arg, &Type::Void).unwrap(),
         Type::Int {
             bitwidth: NonZeroU8::new(8).unwrap()
         }
@@ -40,4 +40,5 @@ fn declare_identity_module() {
     builder.position_at_end(entry).unwrap();
     builder.build_ret(Some(arg)).unwrap();
     builder.finish(&mut module);
+    panic!("mod:\n{module}");
 }

@@ -1,3 +1,12 @@
+use nom::{
+    IResult, Parser,
+    branch::alt,
+    bytes::complete::{tag, take_until},
+    character::complete::multispace0,
+    combinator::success,
+};
+#[cfg(test)]
+use rand::{Rng, SeedableRng};
 mod func;
 use arbitrary::{Arbitrary, Unstructured};
 pub(crate) use func::*;
@@ -10,15 +19,6 @@ pub use linkage::*;
 mod global_ident;
 pub use global_ident::*;
 mod tpe;
-use nom::{
-    IResult, Parser,
-    branch::alt,
-    bytes::complete::{tag, take_until},
-    character::complete::multispace0,
-    combinator::success,
-};
-#[cfg(test)]
-use rand::{Rng, SeedableRng};
 pub use tpe::*;
 mod attr;
 pub use attr::*;
@@ -34,6 +34,8 @@ mod instr;
 pub use instr::*;
 mod operand;
 pub use operand::*;
+mod structurize;
+pub use structurize::*;
 #[cfg(test)]
 mod tests;
 #[qparse_macros::qparse("PlaceHolder")]
