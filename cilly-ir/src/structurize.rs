@@ -10,8 +10,8 @@
 use std::{collections::HashMap, num::NonZeroU8};
 
 use crate::{
-    BasicBlock, Body, CFGElem, Constant, InstrList, Instruction, Label, Locals, Operand, Switch,
-    Termiantor, Type,
+    BasicBlock, Body, CFGElem, Constant, InstrList, Instruction, Label, Locals, Operand, SSAVal,
+    Switch, Termiantor, Type,
 };
 
 pub(crate) fn to_body(
@@ -45,7 +45,7 @@ pub(crate) fn to_body(
     // And turn it to a body, inserting fallbacks if need be.
     res.to_body(locals, sass, ret_ty)
 }
-
+#[derive(Clone)]
 enum StructureRegion {
     OpSeq(InstrList),
     Unstructured {
@@ -54,8 +54,13 @@ enum StructureRegion {
         exit: Label,
     },
 }
-fn label_map(labels:&HashMap<Label, impl Sized>,exit:Label)->HashMap<Label, Constant>{
-    let mut map:HashMap<Label, Constant> = labels.iter().map(|(l,_)|l).enumerate().map(|(idx,l)|(*l, Constant::Int(idx as i128))).collect();
+fn label_map(labels: &HashMap<Label, impl Sized>, exit: Label) -> HashMap<Label, Constant> {
+    let mut map: HashMap<Label, Constant> = labels
+        .iter()
+        .map(|(l, _)| l)
+        .enumerate()
+        .map(|(idx, l)| (*l, Constant::Int(idx as i128)))
+        .collect();
     map.insert(exit, Constant::Int(map.len() as _));
     map
 }
@@ -71,6 +76,41 @@ impl StructureRegion {
                 unstructured,
                 exit,
             } => {
+                // special case - one unstructured - no fallback needed.
+                if unstructured.len() == 1 {
+                    let (s, t) = unstructured[&entry].clone();
+                    let mut s = s.to_body(locals, sass, ret_ty);
+                    match t {
+                        Termiantor::VoidRet => {
+                            s.elems.push(CFGElem::VoidRet);
+                            return s;
+                        }
+                        Termiantor::Ret(operand) => {
+                            s.elems.push(CFGElem::Return {
+                                ty: ret_ty.clone(),
+                                operand,
+                            });
+                            return s;
+                        }
+                        Termiantor::Br(label) => {
+                            if label == exit {
+                                return s;
+                            } else {
+                                assert_eq!(
+                                    label, entry,
+                                    "Invalid unstructured region, contains jump to missing label {label}"
+                                );
+                                let l = CFGElem::DoWhile {
+                                    cond: Operand::Constant(Constant::True),
+                                    label,
+                                    body: s,
+                                };
+                                return Body { elems: vec![l] };
+                            }
+                        }
+                        Termiantor::BrCond { .. } =>(),
+                    }
+                }
                 // Unstructured CFG fallback.
                 // first - how many blocks are there(ergo - size of our dispatch type?)
                 let bits = usize::BITS - unstructured.len().leading_zeros();
@@ -86,12 +126,16 @@ impl StructureRegion {
                 // dispatch var
                 let local = locals.add_local(dispatch_ty.clone());
                 let mut cases = vec![];
-                let label_map = label_map(&unstructured,exit);
+                let label_map = label_map(&unstructured, exit);
                 // An important check - sometimes, the control flow diverges entirely(no jump to exit).
-                let no_exit = !unstructured.iter().map(|(_,(_,t))|t.sucessors()).flatten().any(|s|s == exit);
-                for  (label, (region, term)) in unstructured.into_iter(){
+                let no_exit = !unstructured
+                    .iter()
+                    .map(|(_, (_, t))| t.sucessors())
+                    .flatten()
+                    .any(|s| s == exit);
+                for (label, (region, term)) in unstructured.into_iter() {
                     let mut region = region.to_body(locals, sass, ret_ty);
-                    // store
+                    // store the dispatcher
                     let term = match term {
                         Termiantor::VoidRet => CFGElem::VoidRet,
                         Termiantor::Ret(operand) => CFGElem::Return {
@@ -103,13 +147,37 @@ impl StructureRegion {
                             let instrs = vec![Instruction::StoreLocal {
                                 local: local.clone(),
                                 ty: dispatch_ty.clone(),
-                                val:Operand::Constant(val),
+                                val: Operand::Constant(val),
                             }];
                             CFGElem::Instructions {
                                 instrs: InstrList { instrs },
                             }
                         }
-                        Termiantor::BrCond { cond, then, els } => todo!(),
+                        Termiantor::BrCond { cond, then, els } => {
+                            let dst = SSAVal(sass.len() as u32);
+                            let i1 = Type::Int {
+                                bitwidth: NonZeroU8::new(1).unwrap(),
+                            };
+                            sass.push(i1.clone());
+                            let instrs = vec![
+                                Instruction::Select {
+                                    dst,
+                                    cond,
+                                    sel_ty: i1,
+                                    ty: dispatch_ty.clone(),
+                                    then: Operand::Constant(label_map[&then].clone()),
+                                    els: Operand::Constant(label_map[&els].clone()),
+                                },
+                                Instruction::StoreLocal {
+                                    local: local.clone(),
+                                    ty: dispatch_ty.clone(),
+                                    val: Operand::SSA(dst),
+                                },
+                            ];
+                            CFGElem::Instructions {
+                                instrs: InstrList { instrs },
+                            }
+                        }
                     };
                     region.elems.push(term);
                     let cst = label_map[&label].clone();
@@ -152,18 +220,40 @@ impl StructureRegion {
                     rhs: Operand::Constant(label_map[&exit].clone()),
                     cmp: crate::ICmp::Ne,
                 };
-                let body = Body{ elems: vec![
-                    CFGElem::Instructions { instrs: InstrList { instrs: vec![load_val] } },
-                    CFGElem::Switch(switch),
-                    CFGElem::Instructions { instrs: InstrList { instrs: vec![load_val2, check] } },
-                ] };
-                let dloop = CFGElem::DoWhile { cond:Operand::SSA(cond), label: entry, body};
-                let set_entry = Instruction::StoreLocal { local, ty: dispatch_ty, val: Operand::Constant(label_map[&entry].clone()) };
-                let mut elems =  vec![
-                    CFGElem::Instructions { instrs: InstrList { instrs: vec![set_entry] } },
-                    dloop
+                let body = Body {
+                    elems: vec![
+                        CFGElem::Instructions {
+                            instrs: InstrList {
+                                instrs: vec![load_val],
+                            },
+                        },
+                        CFGElem::Switch(switch),
+                        CFGElem::Instructions {
+                            instrs: InstrList {
+                                instrs: vec![load_val2, check],
+                            },
+                        },
+                    ],
+                };
+                let dloop = CFGElem::DoWhile {
+                    cond: Operand::SSA(cond),
+                    label: entry,
+                    body,
+                };
+                let set_entry = Instruction::StoreLocal {
+                    local,
+                    ty: dispatch_ty,
+                    val: Operand::Constant(label_map[&entry].clone()),
+                };
+                let mut elems = vec![
+                    CFGElem::Instructions {
+                        instrs: InstrList {
+                            instrs: vec![set_entry],
+                        },
+                    },
+                    dloop,
                 ];
-                if no_exit{
+                if no_exit {
                     elems.push(CFGElem::Trap);
                 }
                 // fallback - what happens if nobody jumps to exit?
@@ -173,7 +263,7 @@ impl StructureRegion {
     }
     fn structurize(&mut self, locals: &mut Locals, sass: &mut Vec<Type>, ret_ty: &Type) {
         let (entry, unstructured, exit) = match self {
-            StructureRegion::OpSeq(instr_list) => return (),
+            StructureRegion::OpSeq(_) => return (),
             StructureRegion::Unstructured {
                 entry,
                 unstructured,

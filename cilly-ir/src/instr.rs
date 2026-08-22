@@ -1,7 +1,7 @@
 use arbitrary::Arbitrary;
 
 use crate::{AttrAndTy, Local, Operand, PlaceHolder, SSAVal, Type};
-pub type CallArgs = PlaceHolder;
+pub(crate) type CallArgs = PlaceHolder;
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy, Debug, Arbitrary)]
 pub(crate) enum Binop {
@@ -34,7 +34,7 @@ pub(crate) enum Instruction {
         rhs: Operand,
         cmp: ICmp,
     },
-    #[qparse("{dst} = {op} {ty} {lhs} {rhs}")]
+    #[qparse("{dst} = {op} {ty} {lhs}, {rhs}")]
     Binop {
         dst: SSAVal,
         ty: Type,
@@ -61,5 +61,14 @@ pub(crate) enum Instruction {
         local: Local,
         ty: Type,
         val: Operand,
+    },
+    #[qparse("{dst} = select {sel_ty} {cond}, {ty} {then}, {ty} {els}")]
+    Select {
+        dst: SSAVal,
+        cond: Operand,
+        ty: Type,
+        then: Operand,
+        els: Operand,
+        sel_ty: Type,
     },
 }

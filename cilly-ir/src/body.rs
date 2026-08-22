@@ -1,9 +1,7 @@
-use std::sync::atomic::AtomicU32;
-
 use arbitrary::Arbitrary;
 use nom::{Parser, character::complete::multispace0, multi::many1};
 
-use crate::{Constant, Instruction, Operand, PlaceHolder, Type, comment};
+use crate::{Constant, Instruction, Operand, Type, comment};
 #[derive(Clone, Debug)]
 pub(crate) struct InstrList {
     pub(crate) instrs: Vec<Instruction>,
@@ -50,14 +48,6 @@ pub struct Local {
 #[qparse_macros::qparse("l{id:x}")]
 pub struct Label {
     pub(crate) id: u32,
-}
-impl Label {
-    pub(crate) fn unique() -> Self {
-        static ID: AtomicU32 = AtomicU32::new(u32::MAX / 2);
-        Self {
-            id: ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-        }
-    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Body {

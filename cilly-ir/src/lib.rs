@@ -8,7 +8,7 @@ use nom::{
 #[cfg(test)]
 use rand::{Rng, SeedableRng};
 mod func;
-use arbitrary::{Arbitrary, Unstructured};
+use arbitrary::Arbitrary;
 pub(crate) use func::*;
 mod global;
 pub(crate) use global::*;
@@ -25,7 +25,7 @@ pub use attr::*;
 mod ctype;
 pub use ctype::*;
 mod locals;
-pub use locals::*;
+pub(crate) use locals::*;
 mod body;
 pub use body::*;
 mod builder;
@@ -35,7 +35,7 @@ pub use instr::*;
 mod operand;
 pub use operand::*;
 mod structurize;
-pub use structurize::*;
+pub(crate) use structurize::*;
 #[cfg(test)]
 mod tests;
 #[qparse_macros::qparse("PlaceHolder")]
@@ -89,7 +89,7 @@ pub fn arbitrary<T: for<'a> Arbitrary<'a>>(f: impl Fn(T), og_iters: usize, budge
     let mut iters = og_iters;
     while iters > 0 {
         rng.fill_bytes(&mut buff);
-        let mut u = Unstructured::new(&buff);
+        let mut u = arbitrary::Unstructured::new(&buff);
         c += 1;
         if c > og_iters * 1024 {
             panic!("arbitrary gen loop stuck?? {iters} {c}")

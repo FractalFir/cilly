@@ -1,8 +1,8 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, Binop, Body, Fnc, FuncRef, InstrList, Instruction, Label, Local, Locals, Module,
-    Operand, SSAVal, Type, to_body,
+    AllocA, Binop, Fnc, FuncRef, InstrList, Instruction, Label, Local, Locals, Module, Operand,
+    SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -314,11 +314,13 @@ impl Termiantor {
         match self {
             Termiantor::VoidRet | Termiantor::Ret(_) => vec![],
             Termiantor::Br(label) => vec![*label],
-            Termiantor::BrCond { cond, then, els } => vec![*then, *els],
+            Termiantor::BrCond { cond: _, then, els } => vec![*then, *els],
         }
     }
 }
 #[derive(Debug)]
+// thin erorr type - peps not meant to inspect this, only get the error message.
+#[allow(private_interfaces)]
 pub enum BuilderError {
     AllocaAInvalidAlign {
         align: NonZeroU32,
