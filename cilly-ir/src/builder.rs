@@ -1,7 +1,8 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, Binop, Fnc, FuncRef, ICmp, InstrList, Instruction, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
+    AllocA, Binop, FCmp, Fnc, FuncRef, ICmp, InstrList, Instruction, Label, Local, Locals, Module,
+    Operand, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -52,7 +53,7 @@ impl FunctionBuilder {
         if last_pos < pos {
             Err(BuilderError::PosOutOfRange { last_pos, pos })?;
         }
-        self.pos = Some((block, last_pos));
+        self.pos = Some((block, pos));
         Ok(())
     }
     pub fn position_at_start(&mut self, block: Label) -> Result<(), BuilderError> {
@@ -94,11 +95,8 @@ impl FunctionBuilder {
         then: Label,
         els: Label,
     ) -> Result<(), BuilderError> {
-        let i1 = Type::Int {
-            bitwidth: NonZeroU8::new(1).unwrap(),
-        };
-        let got = self.get_type(&cond, &i1)?;
-        if *got != i1 {
+        let got = self.get_type(&cond, &Type::I1)?;
+        if *got != Type::I1 {
             return Err(BuilderError::CondBrCondNotI1 {
                 cond,
                 got: got.clone(),
@@ -131,6 +129,14 @@ impl FunctionBuilder {
         Ok(())
     }
     // Helpers
+    pub fn get_local_ty(&self, idx: Local) -> Result<&Type, BuilderError> {
+        let local_idx = idx.id as usize;
+        self.locals
+            .locals
+            .get(local_idx)
+            .ok_or(BuilderError::LocalInvalid { idx })
+            .map(|l| &l.ty)
+    }
     fn check_label(&self, block: Label) -> Result<(), BuilderError> {
         self.bbs
             .get(block.id as usize)
@@ -149,6 +155,7 @@ impl FunctionBuilder {
     fn insert_at_pos(&mut self, instr: Instruction) -> Result<(), BuilderError> {
         let (label, pos) = self.pos.ok_or(BuilderError::BuilderPosNotSet)?;
         self.bbs[label.id as usize].instrs.instrs.insert(pos, instr);
+        self.pos = Some((label, pos + 1));
         Ok(())
     }
     fn build_binop(
@@ -191,8 +198,33 @@ impl FunctionBuilder {
                 rhs_ty: rhs_ty.clone(),
             });
         }
-        let dst = self.alloc_ssa_id(ty.clone());
+        let dst = self.alloc_ssa_id(Type::I1.clone());
         self.insert_at_pos(Instruction::ICmp {
+            dst,
+            ty,
+            lhs,
+            rhs,
+            cmp,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    fn build_fcmp(
+        &mut self,
+        cmp: FCmp,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        let lhs_ty = self.get_type(&lhs, &ty)?;
+        let rhs_ty = self.get_type(&rhs, &ty)?;
+        if lhs_ty != rhs_ty {
+            return Err(BuilderError::BinopTypeMismatch {
+                lhs_ty: lhs_ty.clone(),
+                rhs_ty: rhs_ty.clone(),
+            });
+        }
+        let dst = self.alloc_ssa_id(Type::I1.clone());
+        self.insert_at_pos(Instruction::FCmp {
             dst,
             ty,
             lhs,
@@ -213,6 +245,21 @@ impl FunctionBuilder {
         }
         if !self.get_type(&lhs, &ty)?.is_int_or_vecint() {
             return Err(BuilderError::IntOpOperandNotIntOrVecInt { ty });
+        }
+        self.build_binop(op, ty, lhs, rhs)
+    }
+    fn build_fbinop(
+        &mut self,
+        op: Binop,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        if !ty.is_float_or_vecfloat() {
+            return Err(BuilderError::FloatOpTypeNotFloatOrVecInt { ty });
+        }
+        if !self.get_type(&lhs, &ty)?.is_float_or_vecfloat() {
+            return Err(BuilderError::FloatOpOperandNotFloatOrVecInt { ty });
         }
         self.build_binop(op, ty, lhs, rhs)
     }
@@ -267,7 +314,7 @@ impl FunctionBuilder {
     ) -> Result<Operand, BuilderError> {
         self.build_ibinop(Binop::Xor, ty, lhs, rhs)
     }
-        pub fn build_udiv(
+    pub fn build_udiv(
         &mut self,
         ty: Type,
         lhs: Operand,
@@ -339,6 +386,48 @@ impl FunctionBuilder {
     ) -> Result<Operand, BuilderError> {
         self.build_ibinop(Binop::Or, ty, lhs, rhs)
     }
+    // Float binops
+    pub fn build_fadd(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fbinop(Binop::FAdd, ty, lhs, rhs)
+    }
+    pub fn build_fsub(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fbinop(Binop::FSub, ty, lhs, rhs)
+    }
+    pub fn build_fmul(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fbinop(Binop::FMul, ty, lhs, rhs)
+    }
+    pub fn build_fdiv(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fbinop(Binop::FDiv, ty, lhs, rhs)
+    }
+    pub fn build_frem(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fbinop(Binop::FRem, ty, lhs, rhs)
+    }
+    // icmps
     pub fn build_eq(
         &mut self,
         ty: Type,
@@ -347,7 +436,7 @@ impl FunctionBuilder {
     ) -> Result<Operand, BuilderError> {
         self.build_icmp(ICmp::Eq, ty, lhs, rhs)
     }
-        pub fn build_ne(
+    pub fn build_ne(
         &mut self,
         ty: Type,
         lhs: Operand,
@@ -411,6 +500,103 @@ impl FunctionBuilder {
     ) -> Result<Operand, BuilderError> {
         self.build_icmp(ICmp::SLt, ty, lhs, rhs)
     }
+    // fcmp
+    pub fn build_foeq(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::OEq, ty, lhs, rhs)
+    }
+    pub fn build_fogt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::OGt, ty, lhs, rhs)
+    }
+    pub fn build_foge(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::OGe, ty, lhs, rhs)
+    }
+    pub fn build_folt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::OLt, ty, lhs, rhs)
+    }
+    pub fn build_fole(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::OLe, ty, lhs, rhs)
+    }
+    pub fn build_fone(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::ONe, ty, lhs, rhs)
+    }
+    pub fn build_fueq(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::UEq, ty, lhs, rhs)
+    }
+    pub fn build_fugt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::UGt, ty, lhs, rhs)
+    }
+    pub fn build_fuge(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::UGe, ty, lhs, rhs)
+    }
+    pub fn build_fult(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::ULt, ty, lhs, rhs)
+    }
+    pub fn build_fule(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::ULe, ty, lhs, rhs)
+    }
+    pub fn build_fune(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_fcmp(FCmp::UNe, ty, lhs, rhs)
+    }
     pub fn build_sle(
         &mut self,
         ty: Type,
@@ -418,6 +604,61 @@ impl FunctionBuilder {
         rhs: Operand,
     ) -> Result<Operand, BuilderError> {
         self.build_icmp(ICmp::SLe, ty, lhs, rhs)
+    }
+    pub fn build_select(
+        &mut self,
+        cond_ty: Type,
+        ty: Type,
+        cond: Operand,
+        then: Operand,
+        els: Operand,
+    ) -> Result<Operand, BuilderError> {
+        let lhs_ty = self.get_type(&then, &ty)?;
+        let rhs_ty = self.get_type(&els, &ty)?;
+        let cond_real_ty = self.get_type(&cond, &cond_ty)?;
+        if *cond_real_ty != cond_ty {
+            return Err(BuilderError::InvalidSelCond {
+                expected: cond_ty.clone(),
+                got: cond_real_ty.clone(),
+            });
+        }
+        if lhs_ty != rhs_ty || *lhs_ty != ty {
+            return Err(BuilderError::SelInputTypeMismatch {
+                lhs: lhs_ty.clone(),
+                rhs: rhs_ty.clone(),
+                expected: ty,
+            });
+        }
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::Select {
+            dst,
+            cond,
+            ty,
+            then,
+            els,
+            cond_ty,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    // locals - our "poor man's phi-s"
+    // Locals
+    pub fn build_load_local(&mut self, local: Local) -> Result<Operand, BuilderError> {
+        let ty = self.get_local_ty(local)?.clone();
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::LoadLocal { dst, local, ty })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_store_local(&mut self, local: Local, val: Operand) -> Result<(), BuilderError> {
+        let ty = self.get_local_ty(local)?.clone();
+        let got = self.get_type(&val, &ty)?;
+        if *got != ty {
+            return Err(BuilderError::StoreLocalTypeMismatch {
+                local,
+                got: got.clone(),
+                expected: ty,
+            });
+        }
+        self.insert_at_pos(Instruction::StoreLocal { local, ty, val })
     }
     // Position-less
     pub fn add_alloca(
@@ -438,7 +679,7 @@ impl FunctionBuilder {
     }
     pub fn get_param(&mut self, param: u32) -> Result<Operand, BuilderError> {
         let Fnc::Decl { inputs, .. } = &self.fnc else {
-            todo!()
+            unreachable!()
         };
         if param as usize >= inputs.args.len() {
             return Err(BuilderError::ParamOutOfRange {
@@ -555,5 +796,28 @@ pub enum BuilderError {
     CondBrCondNotI1 {
         cond: Operand,
         got: Type,
+    },
+    InvalidSelCond {
+        expected: Type,
+        got: Type,
+    },
+    SelInputTypeMismatch {
+        lhs: Type,
+        rhs: Type,
+        expected: Type,
+    },
+    LocalInvalid {
+        idx: Local,
+    },
+    StoreLocalTypeMismatch {
+        local: Local,
+        got: Type,
+        expected: Type,
+    },
+    FloatOpTypeNotFloatOrVecInt {
+        ty: Type,
+    },
+    FloatOpOperandNotFloatOrVecInt {
+        ty: Type,
     },
 }

@@ -80,9 +80,7 @@ fn declare_select() {
     let mut module = Module::default();
     let i1 = TyAndAttr {
         attr: AttrList::default(),
-        ty: Type::Int {
-            bitwidth: NonZeroU8::new(1).unwrap(),
-        },
+        ty: Type::I1,
     };
     let i8 = TyAndAttr {
         attr: AttrList::default(),

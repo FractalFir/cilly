@@ -29,11 +29,8 @@ pub enum Constant {
 }
 impl Constant {
     pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
-        const I1_TY: Type = Type::Int {
-            bitwidth: NonZeroU8::new(1).unwrap(),
-        };
         match self {
-            Constant::False | Constant::True => Ok(&I1_TY),
+            Constant::False | Constant::True => Ok(&Type::I1),
             Constant::Int(int) => {
                 let Type::Int { bitwidth } = hint_ty else {
                     return Err(BuilderError::ConstIntWhereNonIntExpected {

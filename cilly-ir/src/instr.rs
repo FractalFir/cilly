@@ -31,6 +31,16 @@ pub(crate) enum Binop {
     Or,
     #[qparse("xor")]
     Xor,
+    #[qparse("fadd")]
+    FAdd,
+    #[qparse("fsub")]
+    FSub,
+    #[qparse("fmul")]
+    FMul,
+    #[qparse("fdiv")]
+    FDiv,
+    #[qparse("frem")]
+    FRem,
 }
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy, Debug, Arbitrary)]
@@ -57,6 +67,62 @@ pub(crate) enum ICmp {
     SLe,
 }
 #[qparse_macros::qparse("")]
+#[derive(Clone, Copy, Debug, Arbitrary)]
+pub(crate) enum CastOp {
+    #[qparse("trunc")]
+    Trunc,
+    #[qparse("zext")]
+    ZExt,
+    #[qparse("sext")]
+    SExt,
+    #[qparse("fptrunc")]
+    FPTrunc,
+    #[qparse("fpext")]
+    FPExt,
+    #[qparse("fptoui{sat:present(.sat)}")]
+    FPToUI { sat: bool },
+    #[qparse("fptosi{sat:present(.sat)}")]
+    FPToSI { sat: bool },
+    #[qparse("uitofp")]
+    UIToFP,
+    #[qparse("sitofp")]
+    SIToFP,
+    #[qparse("ptrtoint")]
+    PtrToInt,
+    #[qparse("inttoptr")]
+    IntToPtr,
+    #[qparse("bitcast")]
+    BitCast,
+}
+#[qparse_macros::qparse("")]
+#[derive(Clone, Copy, Debug, Arbitrary)]
+pub(crate) enum FCmp {
+    #[qparse("oeq")]
+    OEq,
+    #[qparse("ogt")]
+    OGt,
+    #[qparse("oge")]
+    OGe,
+    #[qparse("olt")]
+    OLt,
+    #[qparse("ole")]
+    OLe,
+    #[qparse("one")]
+    ONe,
+    #[qparse("ueq")]
+    UEq,
+    #[qparse("ugt")]
+    UGt,
+    #[qparse("uge")]
+    UGe,
+    #[qparse("ult")]
+    ULt,
+    #[qparse("ule")]
+    ULe,
+    #[qparse("une")]
+    UNe,
+}
+#[qparse_macros::qparse("")]
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
     #[qparse("{dst} = icmp {cmp} {ty} {lhs}, {rhs}")]
@@ -67,6 +133,14 @@ pub(crate) enum Instruction {
         rhs: Operand,
         cmp: ICmp,
     },
+    #[qparse("{dst} = fcmp {cmp} {ty} {lhs}, {rhs}")]
+    FCmp {
+        dst: SSAVal,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+        cmp: FCmp,
+    },
     #[qparse("{dst} = {op} {ty} {lhs}, {rhs}")]
     Binop {
         dst: SSAVal,
@@ -74,6 +148,14 @@ pub(crate) enum Instruction {
         lhs: Operand,
         rhs: Operand,
         op: Binop,
+    },
+    #[qparse("{dst} = {op} {src_ty} {val} to {dst_ty}")]
+    Cast {
+        dst: SSAVal,
+        op: CastOp,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
     },
     #[qparse("call void {callee}({call_args})")]
     VoidCall {
@@ -95,13 +177,13 @@ pub(crate) enum Instruction {
         ty: Type,
         val: Operand,
     },
-    #[qparse("{dst} = select {sel_ty} {cond}, {ty} {then}, {ty} {els}")]
+    #[qparse("{dst} = select {cond_ty} {cond}, {ty} {then}, {ty} {els}")]
     Select {
         dst: SSAVal,
         cond: Operand,
         ty: Type,
         then: Operand,
         els: Operand,
-        sel_ty: Type,
+        cond_ty: Type,
     },
 }

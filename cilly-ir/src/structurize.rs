@@ -173,15 +173,12 @@ impl StructureRegion {
                         }
                         Termiantor::BrCond { cond, then, els } => {
                             let dst = SSAVal(sass.len() as u32);
-                            let i1 = Type::Int {
-                                bitwidth: NonZeroU8::new(1).unwrap(),
-                            };
                             sass.push(dispatch_ty.clone());
                             let instrs = vec![
                                 Instruction::Select {
                                     dst,
                                     cond,
-                                    sel_ty: i1,
+                                    cond_ty: Type::I1,
                                     ty: dispatch_ty.clone(),
                                     then: Operand::Constant(label_map[&then].clone()),
                                     els: Operand::Constant(label_map[&els].clone()),
@@ -228,9 +225,7 @@ impl StructureRegion {
                     ty: dispatch_ty.clone(),
                 };
                 let cond = crate::SSAVal(sass.len() as u32);
-                sass.push(Type::Int {
-                    bitwidth: NonZeroU8::new(1).unwrap(),
-                });
+                sass.push(Type::I1);
                 let check = Instruction::ICmp {
                     dst: cond,
                     ty: dispatch_ty.clone(),
@@ -410,9 +405,7 @@ fn structurize_random_cfg(u: &mut arbitrary::Unstructured) -> arbitrary::Result<
                 [case] => Termiantor::Br(Label { id: *case as u32 }),
                 [then, els] => {
                     let cond = Operand::SSA(SSAVal(args.len() as _));
-                    args.push(Type::Int {
-                        bitwidth: NonZeroU8::new(1).unwrap(),
-                    });
+                    args.push(Type::I1);
                     Termiantor::BrCond {
                         cond: cond,
                         then: Label { id: *then as _ },
