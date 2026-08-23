@@ -1,3 +1,5 @@
+#[cfg(test)]
+use arbitrary::Unstructured;
 use nom::{
     IResult, Parser,
     branch::alt,
@@ -83,6 +85,21 @@ pub(crate) fn comment(input: &str) -> IResult<&str, ()> {
 }
 #[cfg(test)]
 pub fn arbitrary<T: for<'a> Arbitrary<'a>>(f: impl Fn(T), og_iters: usize, budget: usize) {
+    unstructured(
+        |u| {
+            f(T::arbitrary(u)?);
+            Ok(())
+        },
+        og_iters,
+        budget,
+    )
+}
+#[cfg(test)]
+pub fn unstructured(
+    f: impl Fn(&mut Unstructured) -> arbitrary::Result<()>,
+    og_iters: usize,
+    budget: usize,
+) {
     let mut rng = rand::rngs::SmallRng::from_seed(*b"THIS IS A SEED. IT SEEDS THE RNG");
     let mut buff = vec![0; budget];
     let mut c = 0;
@@ -94,10 +111,9 @@ pub fn arbitrary<T: for<'a> Arbitrary<'a>>(f: impl Fn(T), og_iters: usize, budge
         if c > og_iters * 1024 {
             panic!("arbitrary gen loop stuck?? {iters} {c}")
         }
-        let Ok(t) = T::arbitrary(&mut u) else {
+        let Ok(_) = f(&mut u) else {
             continue;
         };
         iters -= 1;
-        f(t);
     }
 }

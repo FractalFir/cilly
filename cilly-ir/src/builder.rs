@@ -293,7 +293,7 @@ impl FunctionBuilder {
         };
     }
 }
-
+#[derive(Debug)]
 pub(crate) struct BasicBlock {
     pub(crate) instrs: InstrList,
     pub(crate) term: Option<Termiantor>,
