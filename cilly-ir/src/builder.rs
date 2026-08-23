@@ -1,8 +1,7 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, Binop, Fnc, FuncRef, InstrList, Instruction, Label, Local, Locals, Module, Operand,
-    SSAVal, Type, to_body,
+    AllocA, Binop, Fnc, FuncRef, ICmp, InstrList, Instruction, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -177,6 +176,31 @@ impl FunctionBuilder {
         })?;
         Ok(Operand::SSA(dst))
     }
+    fn build_icmp(
+        &mut self,
+        cmp: ICmp,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        let lhs_ty = self.get_type(&lhs, &ty)?;
+        let rhs_ty = self.get_type(&rhs, &ty)?;
+        if lhs_ty != rhs_ty {
+            return Err(BuilderError::BinopTypeMismatch {
+                lhs_ty: lhs_ty.clone(),
+                rhs_ty: rhs_ty.clone(),
+            });
+        }
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::ICmp {
+            dst,
+            ty,
+            lhs,
+            rhs,
+            cmp,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
     fn build_ibinop(
         &mut self,
         op: Binop,
@@ -234,6 +258,166 @@ impl FunctionBuilder {
         rhs: Operand,
     ) -> Result<Operand, BuilderError> {
         self.build_ibinop(Binop::Mul, ty, lhs, rhs)
+    }
+    pub fn build_xor(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::Xor, ty, lhs, rhs)
+    }
+        pub fn build_udiv(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::UDiv, ty, lhs, rhs)
+    }
+    pub fn build_sdiv(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::SDiv, ty, lhs, rhs)
+    }
+    pub fn build_urem(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::URem, ty, lhs, rhs)
+    }
+    pub fn build_srem(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::SRem, ty, lhs, rhs)
+    }
+    pub fn build_shl(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::Shl, ty, lhs, rhs)
+    }
+    pub fn build_lshr(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::LShr, ty, lhs, rhs)
+    }
+    pub fn build_ashr(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::AShr, ty, lhs, rhs)
+    }
+    pub fn build_and(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::And, ty, lhs, rhs)
+    }
+    pub fn build_or(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_ibinop(Binop::Or, ty, lhs, rhs)
+    }
+    pub fn build_eq(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::Eq, ty, lhs, rhs)
+    }
+        pub fn build_ne(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::Ne, ty, lhs, rhs)
+    }
+    pub fn build_ugt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::UGt, ty, lhs, rhs)
+    }
+    pub fn build_uge(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::UGe, ty, lhs, rhs)
+    }
+    pub fn build_ult(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::ULt, ty, lhs, rhs)
+    }
+    pub fn build_ule(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::ULe, ty, lhs, rhs)
+    }
+    pub fn build_sgt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::SGt, ty, lhs, rhs)
+    }
+    pub fn build_sge(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::SGe, ty, lhs, rhs)
+    }
+    pub fn build_slt(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::SLt, ty, lhs, rhs)
+    }
+    pub fn build_sle(
+        &mut self,
+        ty: Type,
+        lhs: Operand,
+        rhs: Operand,
+    ) -> Result<Operand, BuilderError> {
+        self.build_icmp(ICmp::SLe, ty, lhs, rhs)
     }
     // Position-less
     pub fn add_alloca(

@@ -11,6 +11,24 @@ pub(crate) enum Binop {
     Sub,
     #[qparse("mul")]
     Mul,
+    #[qparse("udiv")]
+    UDiv,
+    #[qparse("sdiv")]
+    SDiv,
+    #[qparse("urem")]
+    URem,
+    #[qparse("srem")]
+    SRem,
+    #[qparse("shl")]
+    Shl,
+    #[qparse("lshr")]
+    LShr,
+    #[qparse("ashr")]
+    AShr,
+    #[qparse("and")]
+    And,
+    #[qparse("or")]
+    Or,
     #[qparse("xor")]
     Xor,
 }
@@ -21,8 +39,23 @@ pub(crate) enum ICmp {
     Eq,
     #[qparse("ne")]
     Ne,
+    #[qparse("ugt")]
+    UGt,
+    #[qparse("uge")]
+    UGe,
+    #[qparse("ult")]
+    ULt,
+    #[qparse("ule")]
+    ULe,
+    #[qparse("sgt")]
+    SGt,
+    #[qparse("sge")]
+    SGe,
+    #[qparse("slt")]
+    SLt,
+    #[qparse("sle")]
+    SLe,
 }
-
 #[qparse_macros::qparse("")]
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
