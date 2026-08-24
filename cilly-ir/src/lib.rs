@@ -38,6 +38,8 @@ mod operand;
 pub use operand::*;
 mod structurize;
 pub(crate) use structurize::*;
+mod intrincis;
+pub(crate) use intrincis::*;
 #[cfg(test)]
 mod tests;
 #[qparse_macros::qparse("PlaceHolder")]

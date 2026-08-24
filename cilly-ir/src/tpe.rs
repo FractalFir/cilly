@@ -11,6 +11,15 @@ pub enum FloatTy {
     #[qparse("double")]
     Double,
 }
+impl FloatTy {
+    pub fn bitwidth(&self) -> u32 {
+        match self {
+            FloatTy::Float => u32::BITS,
+            FloatTy::Half => u16::BITS,
+            FloatTy::Double => u64::BITS,
+        }
+    }
+}
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
 pub enum Type {
@@ -36,7 +45,18 @@ impl Type {
     pub fn is_int(&self) -> bool {
         matches!(self, Self::Int { .. })
     }
+    pub fn is_ptr(&self) -> bool {
+        matches!(self, Self::Ptr)
+    }
     pub fn is_void(&self) -> bool {
         matches!(self, Self::Void)
+    }
+    pub fn try_bitsize(&self) -> Option<u32> {
+        match self {
+            Type::Void => Some(0),
+            Type::Int { bitwidth } => Some(bitwidth.get() as _),
+            Type::Ptr => None,
+            Type::Float(float_ty) => Some(float_ty.bitwidth()),
+        }
     }
 }

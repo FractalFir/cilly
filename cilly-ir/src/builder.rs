@@ -1,8 +1,7 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, Binop, FCmp, Fnc, FuncRef, ICmp, InstrList, Instruction, Label, Local, Locals, Module,
-    Operand, SSAVal, Type, to_body,
+    AllocA, Binop, CastOp, FCmp, Fnc, FuncRef, ICmp, InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -129,6 +128,11 @@ impl FunctionBuilder {
         Ok(())
     }
     // Helpers
+    fn build_intrinsic(&mut self, intrinsic:Intrinsic)->Result<Operand, BuilderError>{
+        let dst = self.alloc_ssa_id(intrinsic.res_ty().clone());
+        self.insert_at_pos(Instruction::CallIntrinsic { dst, intrinsic })?;
+        Ok(Operand::SSA(dst))
+    }
     pub fn get_local_ty(&self, idx: Local) -> Result<&Type, BuilderError> {
         let local_idx = idx.id as usize;
         self.locals
@@ -640,6 +644,208 @@ impl FunctionBuilder {
         })?;
         Ok(Operand::SSA(dst))
     }
+    // casts
+    fn build_cast(
+        &mut self,
+        op: CastOp,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        let dst = self.alloc_ssa_id(dst_ty.clone());
+        let src_got_ty = self.get_type(&val, &src_ty)?;
+        if *src_got_ty != src_ty {
+            return Err(BuilderError::InvalidCastSrc {
+                got: src_got_ty.clone(),
+                expected: src_ty,
+            });
+        }
+        self.insert_at_pos(Instruction::Cast {
+            dst,
+            op,
+            src_ty,
+            val,
+            dst_ty,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_trunc(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::Trunc, src_ty, val, dst_ty)
+    }
+    pub fn build_zext(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::ZExt, src_ty, val, dst_ty)
+    }
+    pub fn build_sext(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2IntCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::SExt, src_ty, val, dst_ty)
+    }
+    pub fn build_fptrunc(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2FloatCastOutputNotFloat { output: dst_ty });
+        }
+        if !src_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2FloatCastInputNotFloat { input: src_ty });
+        }
+        self.build_cast(CastOp::FPTrunc, src_ty, val, dst_ty)
+    }
+    pub fn build_fpext(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2FloatCastOutputNotFloat { output: dst_ty });
+        }
+        if !src_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2FloatCastInputNotFloat { input: src_ty });
+        }
+        self.build_cast(CastOp::FPExt, src_ty, val, dst_ty)
+    }
+    pub fn build_sitofp(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Int2FloatCastOutputNotFloat { output: dst_ty });
+        }
+        if !src_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2FloatCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::SIToFP, src_ty, val, dst_ty)
+    }
+    pub fn build_uitofp(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Int2FloatCastOutputNotFloat { output: dst_ty });
+        }
+        if !src_ty.is_int_or_vecint() {
+            return Err(BuilderError::Int2FloatCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::UIToFP, src_ty, val, dst_ty)
+    }
+    pub fn build_fptosi(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+        sat: bool,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_int_or_vecint() {
+            return Err(BuilderError::Float2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2IntCastInputNotFloat { input: src_ty });
+        }
+        if sat {
+            self.build_intrinsic(Intrinsic::FpToSiSat { dst_ty, src_ty, val })
+        } else {
+            self.build_cast(CastOp::FPToSI, src_ty, val, dst_ty)
+        }
+    }
+    pub fn build_fptoui(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+        sat: bool,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_int_or_vecint() {
+            return Err(BuilderError::Float2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_float_or_vecfloat() {
+            return Err(BuilderError::Float2IntCastInputNotFloat { input: src_ty });
+        }
+        if sat {
+            self.build_intrinsic(Intrinsic::FpToUiSat { dst_ty, src_ty, val })
+        } else {
+            self.build_cast(CastOp::FPToUI, src_ty, val, dst_ty)
+        }
+    }
+    pub fn build_inttoptr(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_ptr() {
+            return Err(BuilderError::Int2PtrCastOutputNotPtr { output: dst_ty });
+        }
+        if !src_ty.is_int() {
+            return Err(BuilderError::Int2PtrCastInputNotInt { input: src_ty });
+        }
+        self.build_cast(CastOp::IntToPtr, src_ty, val, dst_ty)
+    }
+    pub fn build_ptrtoint(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if !dst_ty.is_ptr() {
+            return Err(BuilderError::Ptr2IntCastOutputNotInt { output: dst_ty });
+        }
+        if !src_ty.is_int() {
+            return Err(BuilderError::Ptr2IntCastInputNotPtr { input: src_ty });
+        }
+        self.build_cast(CastOp::PtrToInt, src_ty, val, dst_ty)
+    }
+    pub fn build_bitcast(
+        &mut self,
+        src_ty: Type,
+        val: Operand,
+        dst_ty: Type,
+    ) -> Result<Operand, BuilderError> {
+        if let Some((src_size, dst_size)) = src_ty.try_bitsize().zip(dst_ty.try_bitsize()) {
+            if src_size != dst_size {
+                return Err(BuilderError::BitcastSizeMismatch { src_size, dst_size });
+            }
+        }
+        self.build_cast(CastOp::BitCast, src_ty, val, dst_ty)
+    }
     // locals - our "poor man's phi-s"
     // Locals
     pub fn build_load_local(&mut self, local: Local) -> Result<Operand, BuilderError> {
@@ -819,5 +1025,49 @@ pub enum BuilderError {
     },
     FloatOpOperandNotFloatOrVecInt {
         ty: Type,
+    },
+    InvalidCastSrc {
+        expected: Type,
+        got: Type,
+    },
+    Int2IntCastOutputNotInt {
+        output: Type,
+    },
+    Int2IntCastInputNotInt {
+        input: Type,
+    },
+    Float2FloatCastInputNotFloat {
+        input: Type,
+    },
+    Float2FloatCastOutputNotFloat {
+        output: Type,
+    },
+    Int2FloatCastOutputNotFloat {
+        output: Type,
+    },
+    Int2FloatCastInputNotInt {
+        input: Type,
+    },
+    Int2PtrCastOutputNotPtr {
+        output: Type,
+    },
+    Int2PtrCastInputNotInt {
+        input: Type,
+    },
+    Ptr2IntCastOutputNotInt {
+        output: Type,
+    },
+    Ptr2IntCastInputNotPtr {
+        input: Type,
+    },
+    BitcastSizeMismatch {
+        src_size: u32,
+        dst_size: u32,
+    },
+    Float2IntCastOutputNotInt {
+        output: Type,
+    },
+    Float2IntCastInputNotFloat {
+        input: Type,
     },
 }

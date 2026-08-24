@@ -1,6 +1,6 @@
 use arbitrary::Arbitrary;
 
-use crate::{AttrAndTy, Local, Operand, PlaceHolder, SSAVal, Type};
+use crate::{AttrAndTy, Intrinsic, Local, Operand, PlaceHolder, SSAVal, Type};
 pub(crate) type CallArgs = PlaceHolder;
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy, Debug, Arbitrary)]
@@ -79,10 +79,10 @@ pub(crate) enum CastOp {
     FPTrunc,
     #[qparse("fpext")]
     FPExt,
-    #[qparse("fptoui{sat:present(.sat)}")]
-    FPToUI { sat: bool },
-    #[qparse("fptosi{sat:present(.sat)}")]
-    FPToSI { sat: bool },
+    #[qparse("fptoui")]
+    FPToUI,
+    #[qparse("fptosi")]
+    FPToSI,
     #[qparse("uitofp")]
     UIToFP,
     #[qparse("sitofp")]
@@ -161,6 +161,11 @@ pub(crate) enum Instruction {
     VoidCall {
         callee: Operand,
         call_args: CallArgs,
+    },
+    #[qparse("{dst} = call {intrinsic}")]
+    CallIntrinsic{
+        dst:SSAVal,
+        intrinsic:Intrinsic
     },
     #[qparse("{dst} = call {output} {callee}({call_args})")]
     Call {
