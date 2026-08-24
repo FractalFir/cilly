@@ -45,6 +45,9 @@ impl Type {
     pub fn is_int(&self) -> bool {
         matches!(self, Self::Int { .. })
     }
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float { .. })
+    }
     pub fn is_ptr(&self) -> bool {
         matches!(self, Self::Ptr)
     }

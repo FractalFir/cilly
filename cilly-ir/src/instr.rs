@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use arbitrary::Arbitrary;
 
 use crate::{AttrAndTy, Intrinsic, Local, Operand, PlaceHolder, SSAVal, Type};
@@ -123,6 +125,57 @@ pub(crate) enum FCmp {
     UNe,
 }
 #[qparse_macros::qparse("")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary)]
+pub enum AtomicRmwOp {
+    #[qparse("xchg")]
+    Xchg,
+    #[qparse("add")]
+    Add,
+    #[qparse("sub")]
+    Sub,
+    #[qparse("and")]
+    And,
+    #[qparse("nand")]
+    Nand,
+    #[qparse("or")]
+    Or,
+    #[qparse("xor")]
+    Xor,
+    #[qparse("max")]
+    Max,
+    #[qparse("min")]
+    Min,
+    #[qparse("umax")]
+    UMax,
+    #[qparse("umin")]
+    UMin,
+    #[qparse("fadd")]
+    FAdd,
+    #[qparse("fsub")]
+    FSub,
+    #[qparse("fmax")]
+    FMax,
+    #[qparse("fmin")]
+    FMin,
+}
+#[qparse_macros::qparse("")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary)]
+pub enum AtomOrdering {
+    #[qparse("unordered")]
+    Unordered,
+    #[qparse("monotonic")]
+    Monotonic,
+    #[qparse("acquire")]
+    Acquire,
+    #[qparse("release")]
+    Release,
+    #[qparse("acq_rel")]
+    AcqRel,
+    #[qparse("seq_cst")]
+    SeqCst,
+}
+
+#[qparse_macros::qparse("")]
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
     #[qparse("{dst} = icmp {cmp} {ty} {lhs}, {rhs}")]
@@ -163,10 +216,7 @@ pub(crate) enum Instruction {
         call_args: CallArgs,
     },
     #[qparse("{dst} = call {intrinsic}")]
-    CallIntrinsic{
-        dst:SSAVal,
-        intrinsic:Intrinsic
-    },
+    CallIntrinsic { dst: SSAVal, intrinsic: Intrinsic },
     #[qparse("{dst} = call {output} {callee}({call_args})")]
     Call {
         dst: SSAVal,
@@ -190,5 +240,55 @@ pub(crate) enum Instruction {
         then: Operand,
         els: Operand,
         cond_ty: Type,
+    },
+    #[qparse("{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr}, {off_ty} {off}")]
+    PtrOffset {
+        dst: SSAVal,
+        ptr: Type,
+        off_ty: Type,
+        off: Operand,
+        inbounds: bool,
+    },
+    #[qparse("{dst} = load{volatile:present( volatile)} {ty}, ptr {ptr}, align {align}")]
+    Load {
+        dst: SSAVal,
+        ptr: Operand,
+        ty: Type,
+        align: NonZeroU32,
+        volatile: bool,
+    },
+    #[qparse("{dst} = load atomic {ty}, ptr {ptr} {ordering}, align {align}")]
+    LoadAtomic {
+        dst: SSAVal,
+        ptr: Operand,
+        ty: Type,
+        align: NonZeroU32,
+        ordering: AtomOrdering,
+    },
+    #[qparse("store{volatile:present( volatile)} {ty} {val}, ptr {ptr}, align {align}")]
+    Store {
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        align: NonZeroU32,
+        volatile: bool,
+    },
+    #[qparse("store atomic {ty} {val}, ptr {ptr} {ordering}, align {align}")]
+    StoreAtomic {
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        align: NonZeroU32,
+        ordering: AtomOrdering,
+    },
+    #[qparse("{dst} = atomicrmw {op} ptr {ptr}, {ty} {val} {ordering}, align {align}")]
+    AtomicRmw {
+        dst: SSAVal,
+        op: AtomicRmwOp,
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        ordering: AtomOrdering,
+        align: NonZeroU32,
     },
 }

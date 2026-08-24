@@ -1,7 +1,8 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, Binop, CastOp, FCmp, Fnc, FuncRef, ICmp, InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
+    AllocA, AtomOrdering, AtomicRmwOp, Binop, CastOp, FCmp, Fnc, FuncRef, ICmp, InstrList,
+    Instruction, Intrinsic, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -128,7 +129,7 @@ impl FunctionBuilder {
         Ok(())
     }
     // Helpers
-    fn build_intrinsic(&mut self, intrinsic:Intrinsic)->Result<Operand, BuilderError>{
+    fn build_intrinsic(&mut self, intrinsic: Intrinsic) -> Result<Operand, BuilderError> {
         let dst = self.alloc_ssa_id(intrinsic.res_ty().clone());
         self.insert_at_pos(Instruction::CallIntrinsic { dst, intrinsic })?;
         Ok(Operand::SSA(dst))
@@ -781,7 +782,11 @@ impl FunctionBuilder {
             return Err(BuilderError::Float2IntCastInputNotFloat { input: src_ty });
         }
         if sat {
-            self.build_intrinsic(Intrinsic::FpToSiSat { dst_ty, src_ty, val })
+            self.build_intrinsic(Intrinsic::FpToSiSat {
+                dst_ty,
+                src_ty,
+                val,
+            })
         } else {
             self.build_cast(CastOp::FPToSI, src_ty, val, dst_ty)
         }
@@ -800,7 +805,11 @@ impl FunctionBuilder {
             return Err(BuilderError::Float2IntCastInputNotFloat { input: src_ty });
         }
         if sat {
-            self.build_intrinsic(Intrinsic::FpToUiSat { dst_ty, src_ty, val })
+            self.build_intrinsic(Intrinsic::FpToUiSat {
+                dst_ty,
+                src_ty,
+                val,
+            })
         } else {
             self.build_cast(CastOp::FPToUI, src_ty, val, dst_ty)
         }
@@ -865,6 +874,191 @@ impl FunctionBuilder {
             });
         }
         self.insert_at_pos(Instruction::StoreLocal { local, ty, val })
+    }
+    pub fn build_load(
+        &mut self,
+        ty: Type,
+        ptr: Operand,
+        align: NonZeroU32,
+        volatile: bool,
+    ) -> Result<Operand, BuilderError> {
+        let ptr_ty = self.get_type(&ptr, &Type::Ptr)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::LoadAddrNotPtr {
+                ptr,
+                ptr_ty: ptr_ty.clone(),
+            });
+        }
+        if ty.is_void() {
+            return Err(BuilderError::LoadTyVoid);
+        }
+        if !align.is_power_of_two() {
+            return Err(BuilderError::MemAccessAlignNotPowerOf2 { align });
+        }
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::Load {
+            dst,
+            ptr,
+            ty,
+            align,
+            volatile,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_load_atomic(
+        &mut self,
+        ty: Type,
+        ptr: Operand,
+        align: NonZeroU32,
+        ordering: AtomOrdering,
+    ) -> Result<Operand, BuilderError> {
+        let ptr_ty = self.get_type(&ptr, &Type::Ptr)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::LoadAddrNotPtr {
+                ptr,
+                ptr_ty: ptr_ty.clone(),
+            });
+        }
+        if ty.is_void() {
+            return Err(BuilderError::LoadTyVoid);
+        }
+        if !align.is_power_of_two() {
+            return Err(BuilderError::MemAccessAlignNotPowerOf2 { align });
+        }
+        if !matches!(
+            ordering,
+            AtomOrdering::Unordered
+                | AtomOrdering::Monotonic
+                | AtomOrdering::Acquire
+                | AtomOrdering::SeqCst
+        ) {
+            return Err(BuilderError::AtomicLoadInvalidOrdering { ordering });
+        }
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::LoadAtomic {
+            dst,
+            ptr,
+            ty,
+            align,
+            ordering,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_store(
+        &mut self,
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        align: NonZeroU32,
+        volatile: bool,
+    ) -> Result<(), BuilderError> {
+        let ptr_ty = self.get_type(&ptr, &Type::Ptr)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::StoreAddrNotPtr {
+                ptr,
+                ptr_ty: ptr_ty.clone(),
+            });
+        }
+        if ty.is_void() {
+            return Err(BuilderError::StoreTyVoid);
+        }
+        if !align.is_power_of_two() {
+            return Err(BuilderError::MemAccessAlignNotPowerOf2 { align });
+        }
+        self.insert_at_pos(Instruction::Store {
+            ptr,
+            ty,
+            val,
+            align,
+            volatile,
+        })
+    }
+    pub fn build_store_atomic(
+        &mut self,
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        align: NonZeroU32,
+        ordering: AtomOrdering,
+    ) -> Result<(), BuilderError> {
+        let ptr_ty = self.get_type(&ptr, &Type::Ptr)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::StoreAddrNotPtr {
+                ptr,
+                ptr_ty: ptr_ty.clone(),
+            });
+        }
+        if ty.is_void() {
+            return Err(BuilderError::StoreTyVoid);
+        }
+        if !align.is_power_of_two() {
+            return Err(BuilderError::MemAccessAlignNotPowerOf2 { align });
+        }
+        if !matches!(
+            ordering,
+            AtomOrdering::Unordered
+                | AtomOrdering::Monotonic
+                | AtomOrdering::Release
+                | AtomOrdering::SeqCst
+        ) {
+            return Err(BuilderError::AtomicStoreInvalidOrdering { ordering });
+        }
+        self.insert_at_pos(Instruction::StoreAtomic {
+            ptr,
+            ty,
+            val,
+            align,
+            ordering,
+        })
+    }
+    pub fn build_atomic_rmw(
+        &mut self,
+        op: AtomicRmwOp,
+        ptr: Operand,
+        ty: Type,
+        val: Operand,
+        ordering: AtomOrdering,
+        align: NonZeroU32,
+    ) -> Result<Operand, BuilderError> {
+        let ptr_ty = self.get_type(&ptr, &Type::Ptr)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::AtomicRmwAddrNotPtr {
+                ptr,
+                ptr_ty: ptr_ty.clone(),
+            });
+        }
+        match op{
+            // this is sometimes used with pointers OR floats. 
+            AtomicRmwOp::Xchg => (),
+            AtomicRmwOp::Add |
+            AtomicRmwOp::Sub |
+            AtomicRmwOp::And |
+            AtomicRmwOp::Nand  |
+            AtomicRmwOp::Or |
+            AtomicRmwOp::Xor  |
+            AtomicRmwOp::Max |
+            AtomicRmwOp::Min  |
+            AtomicRmwOp::UMax |
+            AtomicRmwOp::UMin => if !ty.is_int(){
+                return Err(BuilderError::NonIntInAtomicRMWIntOp{op, ty});
+            }
+            AtomicRmwOp::FAdd |
+            AtomicRmwOp::FSub |
+            AtomicRmwOp::FMax | 
+            AtomicRmwOp::FMin => if !ty.is_float(){
+                return Err(BuilderError::NonFloatInAtomicRMWFloatOp{op, ty});
+            }
+        }
+        let val_ty = self.get_type(&val, &ty)?;
+        if *val_ty != ty{
+            return Err(BuilderError::AtomicRmwWrongValType{val_ty:val_ty.clone(), val, ty});
+        }
+        if !align.is_power_of_two() {
+            return Err(BuilderError::MemAccessAlignNotPowerOf2 { align });
+        }
+        let dst = self.alloc_ssa_id(ty.clone());
+        self.insert_at_pos(Instruction::AtomicRmw { dst, op, ptr, ty, val, ordering, align })?;
+        Ok(Operand::SSA(dst))
     }
     // Position-less
     pub fn add_alloca(
@@ -1070,4 +1264,30 @@ pub enum BuilderError {
     Float2IntCastInputNotFloat {
         input: Type,
     },
+    LoadTyVoid,
+    LoadAddrNotPtr {
+        ptr: Operand,
+        ptr_ty: Type,
+    },
+    MemAccessAlignNotPowerOf2 {
+        align: std::num::NonZero<u32>,
+    },
+    AtomicLoadInvalidOrdering {
+        ordering: AtomOrdering,
+    },
+    StoreAddrNotPtr {
+        ptr: Operand,
+        ptr_ty: Type,
+    },
+    StoreTyVoid,
+    AtomicStoreInvalidOrdering {
+        ordering: AtomOrdering,
+    },
+    AtomicRmwAddrNotPtr {
+        ptr: Operand,
+        ptr_ty: Type,
+    },
+    NonFloatInAtomicRMWFloatOp { op: AtomicRmwOp, ty: Type },
+    NonIntInAtomicRMWIntOp { op: AtomicRmwOp, ty: Type },
+    AtomicRmwWrongValType { val_ty: Type, val: Operand, ty: Type },
 }
