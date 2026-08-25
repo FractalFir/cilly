@@ -138,9 +138,7 @@ impl StructureRegion {
                 let bytes = bytes.next_power_of_two();
                 // Then round back to bits
                 let bits = bytes * 8;
-                let dispatch_ty = Type::Int {
-                    bitwidth: NonZeroU8::new(bits as _).unwrap(),
-                };
+                let dispatch_ty = Type::ix(NonZeroU8::new(bits as _).unwrap());
                 // dispatch var
                 let local = locals.add_local(dispatch_ty.clone());
                 let mut cases = vec![];
@@ -425,9 +423,7 @@ fn structurize_random_cfg(u: &mut arbitrary::Unstructured) -> arbitrary::Result<
         bbs,
         &mut Locals::empty(),
         &mut args,
-        &Type::Int {
-            bitwidth: NonZeroU8::new(8).unwrap(),
-        },
+        &Type::ix(NonZeroU8::new(8).unwrap()),
     );
     let _ = body;
     Ok(())

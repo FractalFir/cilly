@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 
 use arbitrary::Arbitrary;
 
-use crate::{BuilderError, GlobalIdent, Type};
+use crate::{BuilderError, GlobalIdent, IntTy, ScalarTy, Type};
 
 #[qparse_macros::qparse("%v{0}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
@@ -32,7 +32,7 @@ impl Constant {
         match self {
             Constant::False | Constant::True => Ok(&Type::I1),
             Constant::Int(int) => {
-                let Type::Int { bitwidth } = hint_ty else {
+                let Type::ScalarTy(ScalarTy::Int(IntTy { bitwidth })) = hint_ty else {
                     return Err(BuilderError::ConstIntWhereNonIntExpected {
                         hint_ty: hint_ty.clone(),
                     });

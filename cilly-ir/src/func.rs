@@ -88,9 +88,7 @@ impl qparse::Parseable<qparse::Display> for InputArgs {
 fn extern_global() {
     use crate::Attr;
     use std::num::NonZeroU8;
-    let i32 = Type::Int {
-        bitwidth: NonZeroU8::new(8).unwrap(),
-    };
+    let i8 = Type::ix(NonZeroU8::new(8).unwrap());
     assert_eq!(
         &Fnc::Decl {
             linkage: Linkage::External,
@@ -98,11 +96,11 @@ fn extern_global() {
             inputs: InputArgs {
                 args: vec![TyAndAttr {
                     attr: AttrList::new(vec![Attr::Sext]),
-                    ty: i32.clone()
+                    ty: i8.clone()
                 }]
             },
             output: AttrAndTy {
-                ty: i32.clone(),
+                ty: i8.clone(),
                 attr: AttrList::new(vec![Attr::Zext])
             },
             src_loc: Default::default(),

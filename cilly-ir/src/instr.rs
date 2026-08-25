@@ -202,6 +202,8 @@ pub(crate) enum Instruction {
         rhs: Operand,
         op: Binop,
     },
+    #[qparse("{dst} = fneg {ty} {val}")]
+    Fneg { dst: SSAVal, ty: Type, val: Operand },
     #[qparse("{dst} = {op} {src_ty} {val} to {dst_ty}")]
     Cast {
         dst: SSAVal,
@@ -273,6 +275,36 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         volatile: bool,
     },
+    #[qparse(
+        "call @llvm.memcpy.p0.p0.len_ty(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemCpy {
+        dest: Operand,
+        src: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
+    #[qparse(
+        "call @llvm.memmove.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemMove {
+        dest: Operand,
+        src: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
+    #[qparse(
+        "declare void @llvm.memset.p0.{len_ty}(ptr {dest}, i8 {val}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemSet {
+        dest: Operand,
+        val: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
     #[qparse("store atomic {ty} {val}, ptr {ptr} {ordering}, align {align}")]
     StoreAtomic {
         ptr: Operand,
@@ -281,6 +313,21 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         ordering: AtomOrdering,
     },
+    #[qparse(
+        "{dst} = cmpxchg {weak:present(weak )}ptr {ptr}, {ty} {expected}, {ty} {desired} {success} {failure}"
+    )]
+    AtomicCmpxchg {
+        ty: Type,
+        ptr: Operand,
+        expected: Operand,
+        desired: Operand,
+        success: AtomOrdering,
+        failure: AtomOrdering,
+        weak: bool,
+        dst: SSAVal,
+    },
+    #[qparse("fence {ordering}")]
+    Fence { ordering: AtomOrdering },
     #[qparse("{dst} = atomicrmw {op} ptr {ptr}, {ty} {val} {ordering}, align {align}")]
     AtomicRmw {
         dst: SSAVal,

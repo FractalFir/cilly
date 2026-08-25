@@ -7,9 +7,7 @@ fn declare_identity_module() {
     let mut module = Module::default();
     let i8 = TyAndAttr {
         attr: AttrList::default(),
-        ty: Type::Int {
-            bitwidth: NonZeroU8::new(8).unwrap(),
-        },
+        ty: Type::ix(NonZeroU8::new(8).unwrap()),
     };
     let ident = module
         .declare(
@@ -32,9 +30,7 @@ fn declare_identity_module() {
     let arg = builder.get_param(0).unwrap();
     assert_eq!(
         *builder.get_type(&arg, &Type::Void).unwrap(),
-        Type::Int {
-            bitwidth: NonZeroU8::new(8).unwrap()
-        }
+        Type::ix(NonZeroU8::new(8).unwrap())
     );
     let entry = builder.new_block();
     builder.position_at_end(entry).unwrap();
@@ -50,9 +46,7 @@ fn declare_add_module() {
     let mut module = Module::default();
     let i8 = TyAndAttr {
         attr: AttrList::default(),
-        ty: Type::Int {
-            bitwidth: NonZeroU8::new(8).unwrap(),
-        },
+        ty: Type::ix(NonZeroU8::new(8).unwrap()),
     };
     let add = module
         .declare(
@@ -84,9 +78,7 @@ fn declare_select() {
     };
     let i8 = TyAndAttr {
         attr: AttrList::default(),
-        ty: Type::Int {
-            bitwidth: NonZeroU8::new(8).unwrap(),
-        },
+        ty: Type::ix(NonZeroU8::new(8).unwrap()),
     };
     let sel = module
         .declare(
