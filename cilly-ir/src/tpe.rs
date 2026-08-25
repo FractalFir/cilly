@@ -54,6 +54,20 @@ impl ScalarTy {
 pub struct IntTy {
     pub(crate) bitwidth: NonZeroU8,
 }
+#[derive(Clone, Arbitrary, Debug, PartialEq)]
+pub struct StructTy{
+    elems:Vec<Type>,
+}
+impl std::fmt::Display for StructTy{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+impl qparse::Parseable<qparse::Display> for StructTy{
+    fn parse(input: &str) -> nom::IResult<&str, Self> {
+        todo!()
+    }
+}
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
 pub enum Type {
@@ -66,13 +80,20 @@ pub enum Type {
         element_ty: ScalarTy,
         element_count: NonZeroU8,
     },
+    #[qparse("{0}")]
+    Struct(StructTy)
 }
+pub static I1_TY: Type = Type::ix(NonZeroU8::new(1).unwrap());
+pub static I8_TY: Type = Type::ix(NonZeroU8::new(8).unwrap());
+pub static I64_TY: Type = Type::ix(NonZeroU8::new(64).unwrap());
+pub static PTR_TY: Type = Type::ScalarTy(ScalarTy::Ptr);
 impl Type {
-    pub const I1: Type = Type::ix(NonZeroU8::new(1).unwrap());
     pub const fn ix(bitwidth: NonZeroU8) -> Self {
         Self::ScalarTy(ScalarTy::Int(IntTy { bitwidth }))
     }
-    pub const PTR: Type = Type::ScalarTy(ScalarTy::Ptr);
+    pub fn ty_and_flag(ty:Type)->Self{
+        Self::Struct(StructTy { elems: vec![ty,I1_TY.clone()] })
+    }
     pub fn is_int(&self) -> bool {
         match self {
             Self::ScalarTy(ScalarTy::Int(_)) => true,
@@ -122,6 +143,7 @@ impl Type {
                 element_ty,
                 element_count,
             } => Some(element_ty.try_bitsize()? * element_count.get() as u32),
+            Type::Struct(_)=>None,
         }
     }
 }

@@ -12,8 +12,7 @@ use std::sync::atomic::AtomicUsize;
 use std::{collections::HashMap, num::NonZeroU8};
 
 use crate::{
-    BasicBlock, Body, CFGElem, Constant, InstrList, Instruction, Label, Locals, Operand, SSAVal,
-    Switch, Termiantor, Type,
+    BasicBlock, Body, CFGElem, Constant, I1_TY, InstrList, Instruction, Label, Locals, Operand, SSAVal, Switch, Termiantor, Type,
 };
 
 pub(crate) fn to_body(
@@ -176,7 +175,7 @@ impl StructureRegion {
                                 Instruction::Select {
                                     dst,
                                     cond,
-                                    cond_ty: Type::I1,
+                                    cond_ty: I1_TY.clone(),
                                     ty: dispatch_ty.clone(),
                                     then: Operand::Constant(label_map[&then].clone()),
                                     els: Operand::Constant(label_map[&els].clone()),
@@ -223,7 +222,7 @@ impl StructureRegion {
                     ty: dispatch_ty.clone(),
                 };
                 let cond = crate::SSAVal(sass.len() as u32);
-                sass.push(Type::I1);
+                sass.push(I1_TY.clone());
                 let check = Instruction::ICmp {
                     dst: cond,
                     ty: dispatch_ty.clone(),
@@ -403,7 +402,7 @@ fn structurize_random_cfg(u: &mut arbitrary::Unstructured) -> arbitrary::Result<
                 [case] => Termiantor::Br(Label { id: *case as u32 }),
                 [then, els] => {
                     let cond = Operand::SSA(SSAVal(args.len() as _));
-                    args.push(Type::I1);
+                    args.push(I1_TY.clone());
                     Termiantor::BrCond {
                         cond: cond,
                         then: Label { id: *then as _ },

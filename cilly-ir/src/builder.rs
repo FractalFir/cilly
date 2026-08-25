@@ -1,8 +1,7 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, AtomOrdering, AtomicRmwOp, Binop, CastOp, FCmp, Fnc, FuncRef, ICmp, InstrList,
-    Instruction, Intrinsic, Label, Local, Locals, Module, Operand, SSAVal, Type, to_body,
+    AllocA, AtomOrdering, AtomicRmwOp, Binop, CastOp, FCmp, Fnc, FuncRef, I1_TY, I8_TY, I64_TY, ICmp, InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal, Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -95,8 +94,8 @@ impl FunctionBuilder {
         then: Label,
         els: Label,
     ) -> Result<(), BuilderError> {
-        let got = self.get_type(&cond, &Type::I1)?;
-        if *got != Type::I1 {
+        let got = self.get_type(&cond, &I1_TY)?;
+        if *got != I1_TY {
             return Err(BuilderError::CondBrCondNotI1 {
                 cond,
                 got: got.clone(),
@@ -203,7 +202,7 @@ impl FunctionBuilder {
                 rhs_ty: rhs_ty.clone(),
             });
         }
-        let dst = self.alloc_ssa_id(Type::I1.clone());
+        let dst = self.alloc_ssa_id(I1_TY.clone());
         self.insert_at_pos(Instruction::ICmp {
             dst,
             ty,
@@ -228,7 +227,7 @@ impl FunctionBuilder {
                 rhs_ty: rhs_ty.clone(),
             });
         }
-        let dst = self.alloc_ssa_id(Type::I1.clone());
+        let dst = self.alloc_ssa_id(I1_TY.clone());
         self.insert_at_pos(Instruction::FCmp {
             dst,
             ty,
@@ -281,7 +280,7 @@ impl FunctionBuilder {
                         operand: op.clone(),
                     })
             }
-            Operand::Global(_) => Ok(&Type::PTR),
+            Operand::Global(_) => Ok(&PTR_TY),
             Operand::Constant(cst) => cst.get_ty(implicit_ty),
         }
     }
@@ -896,7 +895,7 @@ impl FunctionBuilder {
         align: NonZeroU32,
         volatile: bool,
     ) -> Result<Operand, BuilderError> {
-        let ptr_ty = self.get_type(&ptr, &Type::PTR)?;
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
         if !ptr_ty.is_ptr() {
             return Err(BuilderError::LoadAddrNotPtr {
                 ptr,
@@ -926,7 +925,7 @@ impl FunctionBuilder {
         align: NonZeroU32,
         ordering: AtomOrdering,
     ) -> Result<Operand, BuilderError> {
-        let ptr_ty = self.get_type(&ptr, &Type::PTR)?;
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
         if !ptr_ty.is_ptr() {
             return Err(BuilderError::LoadAddrNotPtr {
                 ptr,
@@ -966,7 +965,7 @@ impl FunctionBuilder {
         align: NonZeroU32,
         volatile: bool,
     ) -> Result<(), BuilderError> {
-        let ptr_ty = self.get_type(&ptr, &Type::PTR)?;
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
         if !ptr_ty.is_ptr() {
             return Err(BuilderError::StoreAddrNotPtr {
                 ptr,
@@ -995,7 +994,7 @@ impl FunctionBuilder {
         align: NonZeroU32,
         ordering: AtomOrdering,
     ) -> Result<(), BuilderError> {
-        let ptr_ty = self.get_type(&ptr, &Type::PTR)?;
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
         if !ptr_ty.is_ptr() {
             return Err(BuilderError::StoreAddrNotPtr {
                 ptr,
@@ -1033,14 +1032,14 @@ impl FunctionBuilder {
         len: Operand,
         volatile: bool,
     ) -> Result<(), BuilderError> {
-        let dst_ty = self.get_type(&dest, &Type::PTR)?;
-        if dst_ty != &Type::PTR {
+        let dst_ty = self.get_type(&dest, &PTR_TY)?;
+        if dst_ty != &PTR_TY {
             return Err(BuilderError::MemMoveDestNotPtr {
                 dst_ty: dst_ty.clone(),
             });
         }
-        let src_ty = self.get_type(&src, &Type::PTR)?;
-        if src_ty != &Type::PTR {
+        let src_ty = self.get_type(&src, &PTR_TY)?;
+        if src_ty != &PTR_TY {
             return Err(BuilderError::MemMoveSrcNotPtr {
                 src_ty: src_ty.clone(),
             });
@@ -1050,7 +1049,7 @@ impl FunctionBuilder {
                 len_ty: len_ty.clone(),
             })?;
         }
-        let got_len_ty = self.get_type(&len, &const { Type::ix(NonZeroU8::new(64).unwrap()) })?;
+        let got_len_ty = self.get_type(&len, &I64_TY)?;
         if *got_len_ty != len_ty {
             return Err(BuilderError::MemMoveLenNotInt {
                 len_ty: got_len_ty.clone(),
@@ -1073,14 +1072,14 @@ impl FunctionBuilder {
         len: Operand,
         volatile: bool,
     ) -> Result<(), BuilderError> {
-        let dst_ty = self.get_type(&dest, &Type::PTR)?;
-        if dst_ty != &Type::PTR {
+        let dst_ty = self.get_type(&dest, &PTR_TY)?;
+        if dst_ty != &PTR_TY {
             return Err(BuilderError::MemCpyDestNotPtr {
                 dst_ty: dst_ty.clone(),
             });
         }
-        let src_ty = self.get_type(&src, &Type::PTR)?;
-        if src_ty != &Type::PTR {
+        let src_ty = self.get_type(&src, &PTR_TY)?;
+        if src_ty != &PTR_TY {
             return Err(BuilderError::MemCpySrcNotPtr {
                 src_ty: src_ty.clone(),
             });
@@ -1090,7 +1089,7 @@ impl FunctionBuilder {
                 len_ty: len_ty.clone(),
             })?;
         }
-        let got_len_ty = self.get_type(&len, &const { Type::ix(NonZeroU8::new(64).unwrap()) })?;
+        let got_len_ty = self.get_type(&len, &I64_TY)?;
         if *got_len_ty != len_ty {
             return Err(BuilderError::MemCpyLenNotInt {
                 len_ty: got_len_ty.clone(),
@@ -1113,8 +1112,8 @@ impl FunctionBuilder {
         len: Operand,
         volatile: bool,
     ) -> Result<(), BuilderError> {
-        let dst_ty = self.get_type(&dest, &Type::PTR)?;
-        if dst_ty != &Type::PTR {
+        let dst_ty = self.get_type(&dest, &PTR_TY)?;
+        if dst_ty != &PTR_TY {
             return Err(BuilderError::MemSetDestNotPtr {
                 dst_ty: dst_ty.clone(),
             });
@@ -1124,14 +1123,14 @@ impl FunctionBuilder {
                 len_ty: len_ty.clone(),
             })?;
         }
-        let got_len_ty = self.get_type(&len, &const { Type::ix(NonZeroU8::new(64).unwrap()) })?;
+        let got_len_ty = self.get_type(&len, &I64_TY)?;
         if *got_len_ty != len_ty {
             return Err(BuilderError::MemSetLenNotInt {
                 len_ty: got_len_ty.clone(),
                 len,
             })?;
         }
-        let val_ty = self.get_type(&val, &const { Type::ix(NonZeroU8::new(8).unwrap()) })?;
+        let val_ty = self.get_type(&val, &I8_TY)?;
         if val_ty.is_int() {
             return Err(BuilderError::MemSetValNotInt {
                 len_ty: got_len_ty.clone(),
@@ -1159,7 +1158,7 @@ impl FunctionBuilder {
         ordering: AtomOrdering,
         align: NonZeroU32,
     ) -> Result<Operand, BuilderError> {
-        let ptr_ty = self.get_type(&ptr, &Type::PTR)?;
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
         if !ptr_ty.is_ptr() {
             return Err(BuilderError::AtomicRmwAddrNotPtr {
                 ptr,
@@ -1222,7 +1221,7 @@ impl FunctionBuilder {
         if !align.get().is_power_of_two() {
             Err(BuilderError::AllocaAInvalidAlign { align })?;
         }
-        let ssa_id = self.alloc_ssa_id(Type::PTR);
+        let ssa_id = self.alloc_ssa_id(PTR_TY.clone());
         self.locals.allocas.push(AllocA {
             ssa_id,
             size,

@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 
 use arbitrary::Arbitrary;
 
-use crate::{BuilderError, GlobalIdent, IntTy, ScalarTy, Type};
+use crate::{BuilderError, GlobalIdent, I1_TY, IntTy, ScalarTy, Type};
 
 #[qparse_macros::qparse("%v{0}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
@@ -30,7 +30,7 @@ pub enum Constant {
 impl Constant {
     pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
         match self {
-            Constant::False | Constant::True => Ok(&Type::I1),
+            Constant::False | Constant::True => Ok(&I1_TY),
             Constant::Int(int) => {
                 let Type::ScalarTy(ScalarTy::Int(IntTy { bitwidth })) = hint_ty else {
                     return Err(BuilderError::ConstIntWhereNonIntExpected {

@@ -74,7 +74,7 @@ fn declare_select() {
     let mut module = Module::default();
     let i1 = TyAndAttr {
         attr: AttrList::default(),
-        ty: Type::I1,
+        ty: I1_TY,
     };
     let i8 = TyAndAttr {
         attr: AttrList::default(),
