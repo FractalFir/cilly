@@ -7,7 +7,7 @@ use nom::{
 };
 use qparse_macros::qparse;
 
-use crate::{AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, locals::Locals};
+use crate::{Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, locals::Locals};
 
 /// Function Declaration or Definition.
 #[qparse_macros::qparse("")]
@@ -51,7 +51,19 @@ pub struct TyAndAttr {
     pub(crate) attr: AttrList,
     pub(crate) ty: Type,
 }
-
+impl TyAndAttr {
+    pub fn add_attr(&mut self, attr: Attr) {
+        self.attr.add_attr(attr);
+    }
+}
+impl From<Type> for TyAndAttr {
+    fn from(ty: Type) -> Self {
+        Self {
+            ty,
+            attr: AttrList::default(),
+        }
+    }
+}
 impl std::fmt::Display for InputArgs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (n, arg) in self.args.iter().enumerate() {

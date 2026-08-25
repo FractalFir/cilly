@@ -1,3 +1,4 @@
+use arbitrary::Arbitrary;
 #[cfg(test)]
 use arbitrary::Unstructured;
 use nom::{
@@ -10,8 +11,7 @@ use nom::{
 #[cfg(test)]
 use rand::{Rng, SeedableRng};
 mod func;
-use arbitrary::Arbitrary;
-pub(crate) use func::*;
+pub use func::*;
 mod global;
 pub(crate) use global::*;
 mod module;

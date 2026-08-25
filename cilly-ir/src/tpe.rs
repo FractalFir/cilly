@@ -83,6 +83,8 @@ pub enum Type {
     #[qparse("{0}")]
     Struct(StructTy),
 }
+pub static F32_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::Float));
+pub static F64_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::Double));
 pub static I1_TY: Type = Type::ix(NonZeroU8::new(1).unwrap());
 pub static I8_TY: Type = Type::ix(NonZeroU8::new(8).unwrap());
 pub static I64_TY: Type = Type::ix(NonZeroU8::new(64).unwrap());

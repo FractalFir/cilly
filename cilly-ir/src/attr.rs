@@ -6,7 +6,7 @@ use nom::multi::many0;
 use crate::CType;
 
 #[qparse_macros::qparse("")]
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, PartialEq)]
 pub enum Attr {
     #[qparse("zext ")]
     Zext,
@@ -27,6 +27,12 @@ pub(crate) struct AttrList {
 impl AttrList {
     pub(crate) fn new(attrs: Vec<Attr>) -> Self {
         Self { attrs }
+    }
+
+    pub(crate) fn add_attr(&mut self, attr: Attr) {
+        if !self.attrs.contains(&attr) {
+            self.attrs.push(attr);
+        }
     }
 }
 impl std::fmt::Display for AttrList {

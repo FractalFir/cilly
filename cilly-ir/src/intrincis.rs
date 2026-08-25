@@ -310,17 +310,13 @@ impl Intrinsic {
             | Intrinsic::Rint { ty, .. }
             | Intrinsic::NearbyInt { ty, .. } => ty.clone(),
             Intrinsic::Pow { ty, .. } => ty.clone(),
-            Intrinsic::Powi {
-                ty,
-               ..
-            } => ty.clone(),
+            Intrinsic::Powi { ty, .. } => ty.clone(),
             Intrinsic::Copysign { ty, .. } => ty.clone(),
-            Intrinsic::MinNum { ty, .. }|
-            Intrinsic::MaxNum { ty, ..  } |
-            Intrinsic::Minimum { ty,..  }|
-            Intrinsic::Maximum { ty, ..  } => ty.clone(),
-            Intrinsic::Fma { ty, .. } |
-            Intrinsic::FmulAdd { ty, .. } => ty.clone(),
+            Intrinsic::MinNum { ty, .. }
+            | Intrinsic::MaxNum { ty, .. }
+            | Intrinsic::Minimum { ty, .. }
+            | Intrinsic::Maximum { ty, .. } => ty.clone(),
+            Intrinsic::Fma { ty, .. } | Intrinsic::FmulAdd { ty, .. } => ty.clone(),
         }
     }
 }
