@@ -12,7 +12,8 @@ use std::sync::atomic::AtomicUsize;
 use std::{collections::HashMap, num::NonZeroU8};
 
 use crate::{
-    BasicBlock, Body, CFGElem, Constant, I1_TY, InstrList, Instruction, Label, Locals, Operand, SSAVal, Switch, Termiantor, Type,
+    BasicBlock, Body, CFGElem, Constant, I1_TY, InstrList, Instruction, Label, Locals, Operand,
+    SSAVal, Switch, Termiantor, Type,
 };
 
 pub(crate) fn to_body(

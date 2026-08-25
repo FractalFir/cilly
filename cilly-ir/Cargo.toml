@@ -5,10 +5,11 @@ edition = "2024"
 
 
 [dependencies]
-arbitrary = { version = "1.4.2", features = ["derive"] }
 nom = "8.0.0"
 petgraph = "0.8.3"
 qparse = { git = "https://github.com/FractalFir/qparse.git" }
 qparse_macros = { git = "https://github.com/FractalFir/qparse.git" }
-rand = "0.10.2"
 serde = { version = "1.0.229", features = ["derive"] }
+arbitrary = { version = "1.4.2", features = ["derive"] }
+[dev-dependencies]
+rand = "0.10.2"

@@ -1,7 +1,9 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use crate::{
-    AllocA, AtomOrdering, AtomicRmwOp, Binop, CastOp, FCmp, Fnc, FuncRef, I1_TY, I8_TY, I64_TY, ICmp, InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal, Type, to_body,
+    AllocA, AtomOrdering, AtomicRmwOp, Binop, CastOp, FCmp, Fnc, FuncRef, I1_TY, I8_TY, I64_TY,
+    ICmp, InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal,
+    Type, to_body,
 };
 
 pub struct FunctionBuilder {
@@ -1146,7 +1148,7 @@ impl FunctionBuilder {
         })
     }
     // atomic mem
-    pub fn build_fence(&mut self, ordering:AtomOrdering)->Result<(),BuilderError>{
+    pub fn build_fence(&mut self, ordering: AtomOrdering) -> Result<(), BuilderError> {
         self.insert_at_pos(Instruction::Fence { ordering })
     }
     pub fn build_atomic_rmw(

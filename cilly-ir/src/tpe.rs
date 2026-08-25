@@ -55,15 +55,15 @@ pub struct IntTy {
     pub(crate) bitwidth: NonZeroU8,
 }
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
-pub struct StructTy{
-    elems:Vec<Type>,
+pub struct StructTy {
+    elems: Vec<Type>,
 }
-impl std::fmt::Display for StructTy{
+impl std::fmt::Display for StructTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
-impl qparse::Parseable<qparse::Display> for StructTy{
+impl qparse::Parseable<qparse::Display> for StructTy {
     fn parse(input: &str) -> nom::IResult<&str, Self> {
         todo!()
     }
@@ -81,7 +81,7 @@ pub enum Type {
         element_count: NonZeroU8,
     },
     #[qparse("{0}")]
-    Struct(StructTy)
+    Struct(StructTy),
 }
 pub static I1_TY: Type = Type::ix(NonZeroU8::new(1).unwrap());
 pub static I8_TY: Type = Type::ix(NonZeroU8::new(8).unwrap());
@@ -91,8 +91,10 @@ impl Type {
     pub const fn ix(bitwidth: NonZeroU8) -> Self {
         Self::ScalarTy(ScalarTy::Int(IntTy { bitwidth }))
     }
-    pub fn ty_and_flag(ty:Type)->Self{
-        Self::Struct(StructTy { elems: vec![ty,I1_TY.clone()] })
+    pub fn ty_and_flag(ty: Type) -> Self {
+        Self::Struct(StructTy {
+            elems: vec![ty, I1_TY.clone()],
+        })
     }
     pub fn is_int(&self) -> bool {
         match self {
@@ -143,7 +145,7 @@ impl Type {
                 element_ty,
                 element_count,
             } => Some(element_ty.try_bitsize()? * element_count.get() as u32),
-            Type::Struct(_)=>None,
+            Type::Struct(_) => None,
         }
     }
 }

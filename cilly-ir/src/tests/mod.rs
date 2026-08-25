@@ -74,7 +74,7 @@ fn declare_select() {
     let mut module = Module::default();
     let i1 = TyAndAttr {
         attr: AttrList::default(),
-        ty: I1_TY,
+        ty: crate::I1_TY.clone(),
     };
     let i8 = TyAndAttr {
         attr: AttrList::default(),
