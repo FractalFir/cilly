@@ -15,6 +15,7 @@ fn declare_identity_module() {
             Linkage::External,
             i8.clone(),
             vec![i8],
+            false,
         )
         .unwrap();
     assert_eq!(
@@ -54,6 +55,7 @@ fn declare_add_module() {
             Linkage::External,
             i8.clone(),
             vec![i8.clone(), i8.clone()],
+            false,
         )
         .unwrap();
     let mut builder = module.fn_builder(add).unwrap();
@@ -86,6 +88,7 @@ fn declare_select() {
             Linkage::External,
             i8.clone(),
             vec![i1.clone(), i8.clone(), i8.clone()],
+            false,
         )
         .unwrap();
     let mut builder = module.fn_builder(sel).unwrap();

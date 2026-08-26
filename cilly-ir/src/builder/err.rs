@@ -237,5 +237,5 @@ pub enum BuilderError {
     },
     InsertElementArgNotVec { vector_ty: Type },
     InsertElementArgNotVecOfVecTy { expected: Type, got: ScalarTy },
-    InsertElementElementOperandWrongTy { expected: Type, got: &Type },
+    InsertElementElementOperandWrongTy { expected: Type, got: Type },
 }
