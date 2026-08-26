@@ -1,9 +1,28 @@
-use std::num::NonZeroU32;
+use std::{fmt::Write, num::NonZeroU32};
 
 use arbitrary::Arbitrary;
 
-use crate::{AttrAndTy, Intrinsic, Local, Operand, PlaceHolder, SSAVal, Type};
-pub(crate) type CallArgs = PlaceHolder;
+use crate::{AttrAndTy, Intrinsic, Local, Operand, SSAVal, TyAndAttr, Type};
+#[derive(Clone, Debug, Arbitrary)]
+pub(crate) struct CallArgs {
+    pub(crate) args: Vec<(TyAndAttr, Operand)>,
+}
+impl std::fmt::Display for CallArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (n, arg) in self.args.iter().enumerate() {
+            write!(f, "{}{}", arg.0, arg.1)?;
+            if n != 0 {
+                f.write_str(", ")?;
+            }
+        }
+        Ok(())
+    }
+}
+impl qparse::Parseable<qparse::Display> for CallArgs {
+    fn parse(input: &str) -> nom::IResult<&str, Self> {
+        todo!()
+    }
+}
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy, Debug, Arbitrary)]
 pub(crate) enum Binop {
@@ -212,13 +231,13 @@ pub(crate) enum Instruction {
         val: Operand,
         dst_ty: Type,
     },
+    #[qparse("{dst} = call {intrinsic}")]
+    CallIntrinsic { dst: SSAVal, intrinsic: Intrinsic },
     #[qparse("call void {callee}({call_args})")]
     VoidCall {
         callee: Operand,
         call_args: CallArgs,
     },
-    #[qparse("{dst} = call {intrinsic}")]
-    CallIntrinsic { dst: SSAVal, intrinsic: Intrinsic },
     #[qparse("{dst} = call {output} {callee}({call_args})")]
     Call {
         dst: SSAVal,
@@ -246,7 +265,7 @@ pub(crate) enum Instruction {
     #[qparse("{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr}, {off_ty} {off}")]
     PtrOffset {
         dst: SSAVal,
-        ptr: Type,
+        ptr: Operand,
         off_ty: Type,
         off: Operand,
         inbounds: bool,

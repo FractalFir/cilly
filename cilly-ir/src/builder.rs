@@ -1,6 +1,7 @@
 use crate::{
-    AllocA, Binop, CastOp, FCmp, Fnc, FuncRef, I1_TY, ICmp, InstrList, Instruction, Intrinsic,
-    Label, Local, Locals, Module, Operand, PTR_TY, SSAVal, Type, to_body,
+    AllocA, AttrAndTy, Binop, CallArgs, CastOp, FCmp, Fnc, FuncRef, I1_TY, ICmp, InstrList,
+    Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal, TyAndAttr, Type,
+    to_body,
 };
 use std::num::NonZeroU32;
 mod binop;
@@ -300,6 +301,68 @@ impl FunctionBuilder {
         }
         let dst = self.alloc_ssa_id(ty.clone());
         self.insert_at_pos(Instruction::Fneg { dst, ty, val })?;
+        Ok(Operand::SSA(dst))
+    }
+
+    pub fn build_voidcall(
+        &mut self,
+        callee: Operand,
+        call_args: Vec<(TyAndAttr, Operand)>,
+    ) -> Result<(), BuilderError> {
+        let call_args = CallArgs { args: call_args };
+        let calle_ty = self.get_type(&callee, &PTR_TY)?;
+        if !calle_ty.is_ptr() {
+            return Err(BuilderError::CalleeNotPtrOrFn {
+                callee,
+                calle_ty: calle_ty.clone(),
+            });
+        }
+        self.insert_at_pos(Instruction::VoidCall { callee, call_args })
+    }
+    pub fn build_call(
+        &mut self,
+        output: TyAndAttr,
+        callee: Operand,
+        call_args: Vec<(TyAndAttr, Operand)>,
+    ) -> Result<Operand, BuilderError> {
+        let call_args = CallArgs { args: call_args };
+        let calle_ty = self.get_type(&callee, &PTR_TY)?;
+        if !calle_ty.is_ptr() {
+            return Err(BuilderError::CalleeNotPtrOrFn {
+                callee,
+                calle_ty: calle_ty.clone(),
+            });
+        }
+        let dst = self.alloc_ssa_id(output.ty.clone());
+        self.insert_at_pos(Instruction::Call {
+            dst,
+            output: AttrAndTy {
+                attr: output.attr,
+                ty: output.ty,
+            },
+            callee,
+            call_args,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn ptr_offset(&mut self,
+        ptr: Operand,
+        off_ty: Type,
+        off: Operand,
+        inbounds: bool)->Result<Operand, BuilderError>{
+        let off_got_ty = self.get_type(&off, &off_ty)?;
+        if off_ty != *off_got_ty {
+            return Err(BuilderError::PtrOffsetOffsetOperandWrongType{off, off_ty:off_ty.clone(), got:off_got_ty.clone()});
+        }
+        if !off_ty.is_int(){
+            return Err(BuilderError::PtrOffsetOffsetWrongType{off_ty});
+        }
+        let ptr_ty = self.get_type(&ptr,&PTR_TY)?;
+        if !ptr_ty.is_ptr(){
+            return Err(BuilderError::PtrOffsetPtrIsNotPtr{ptr_ty:ptr_ty.clone(),ptr});
+        }
+        let dst = self.alloc_ssa_id(ptr_ty.clone());
+        self.insert_at_pos(Instruction::PtrOffset { dst, ptr, off_ty, off, inbounds })?;
         Ok(Operand::SSA(dst))
     }
     // select

@@ -198,4 +198,11 @@ pub enum BuilderError {
         len_ty: Type,
         len: Operand,
     },
+    CalleeNotPtrOrFn {
+        callee: Operand,
+        calle_ty: Type,
+    },
+    PtrOffsetOffsetOperandWrongType { off: Operand, off_ty: Type, got: Type },
+    PtrOffsetOffsetWrongType { off_ty: Type },
+    PtrOffsetPtrIsNotPtr { ptr_ty: Type, ptr: Operand },
 }
