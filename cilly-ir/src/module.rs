@@ -93,6 +93,7 @@ impl Module {
         linkage: Linkage,
         output: TyAndAttr,
         inputs: Vec<TyAndAttr>,
+        va_args:bool,
     ) -> Result<FuncRef, ModuleBuilderError> {
         let fnc = self.functions.len();
         self.functions.push(Fnc::Decl {
@@ -102,7 +103,7 @@ impl Module {
                 attr: output.attr,
             },
             name,
-            inputs: InputArgs { args: inputs },
+            inputs: InputArgs { args: inputs, va_args},
             src_loc: Default::default(),
         });
         Ok(FuncRef(fnc))

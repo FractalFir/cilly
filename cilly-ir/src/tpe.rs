@@ -189,4 +189,10 @@ impl Type {
         };
         Some(*element_count)
     }
+    pub fn vec_elem_ty(&self) -> Option<ScalarTy> {
+        let Type::VectorTy { element_ty, .. } = self else {
+            return None;
+        };
+        Some(element_ty.clone())
+    }
 }

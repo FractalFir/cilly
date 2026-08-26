@@ -374,4 +374,20 @@ pub(crate) enum Instruction {
         element: Operand,
         index: u64,
     },
+    #[qparse("{dst} = extractelement {vector_ty} {vector}, i32 {index}")]
+    ExtractElement {
+        dst: SSAVal,
+        vector_ty: Type,
+        vector: Operand,
+        index: Operand,
+    },
+    #[qparse("{dst} = insertelement {vector_ty} {vector}, {element_ty} {element}, i32 {index}")]
+    InsertElement {
+        dst: SSAVal,
+        vector_ty: Type,
+        vector: Operand,
+        element: Operand,
+        element_ty: Type,
+        index: Operand,
+    },
 }

@@ -1,4 +1,4 @@
-use crate::{AtomOrdering, AtomicRmwOp, Label, Local, Operand, Termiantor, Type};
+use crate::{AtomOrdering, AtomicRmwOp, Label, Local, Operand, ScalarTy, Termiantor, Type};
 use std::num::NonZeroU32;
 
 // thin erorr type - peps not meant to inspect this, only get the error message.
@@ -235,4 +235,7 @@ pub enum BuilderError {
         bitsize: u32,
         val: Operand,
     },
+    InsertElementArgNotVec { vector_ty: Type },
+    InsertElementArgNotVecOfVecTy { expected: Type, got: ScalarTy },
+    InsertElementElementOperandWrongTy { expected: Type, got: &Type },
 }

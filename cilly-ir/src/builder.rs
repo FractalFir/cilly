@@ -317,6 +317,51 @@ impl FunctionBuilder {
         }
         self.build_binop(op, ty, lhs, rhs)
     }
+    pub fn build_extractelement(
+        &mut self,
+        vector_ty: Type,
+        vector: Operand,
+        index: Operand,
+    ) -> Result<Operand, BuilderError> {
+        // FIXME: better checks
+        let dst = self.alloc_ssa_id(Type::ScalarTy(vector_ty.vec_elem_ty().unwrap()));
+        self.insert_at_pos(Instruction::ExtractElement {
+            dst,
+            vector_ty,
+            vector,
+            index,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_insertelement(
+        &mut self,
+        vector_ty: Type,
+        vector: Operand,
+        element: Operand,
+        element_ty: Type,
+        index: Operand,
+    ) -> Result<Operand, BuilderError> {
+        let Some(ety) = vector_ty.vec_elem_ty() else {
+            return Err(BuilderError::InsertElementArgNotVec{vector_ty});
+        };
+        if Type::ScalarTy(ety) != element_ty{
+            return Err(BuilderError::InsertElementArgNotVecOfVecTy{expected:element_ty, got:ety});
+        }
+        let ety = self.get_type(&element, &element_ty)?;
+        if *ety != element_ty{
+            return Err(BuilderError::InsertElementElementOperandWrongTy{expected:element_ty, got:ety})
+        }
+        let dst = self.alloc_ssa_id(vector_ty.clone());
+        self.insert_at_pos(Instruction::InsertElement {
+            dst,
+            vector_ty,
+            vector,
+            element,
+            element_ty,
+            index,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
     pub fn get_type<'ty, 's: 'ty>(
         &'s self,
         op: &Operand,

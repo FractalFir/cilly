@@ -46,6 +46,7 @@ impl Fnc {
 #[derive(Clone)]
 pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
+    pub(crate) va_args: bool,
 }
 #[qparse("{attr}{ty}")]
 #[derive(Clone, Debug, Arbitrary)]
@@ -80,6 +81,12 @@ impl std::fmt::Display for InputArgs {
             }
             write!(f, "{arg}%v{n}")?;
         }
+        if self.va_args {
+            if !self.args.is_empty() {
+                f.write_char(',');
+            }
+            write!(f, "...")?;
+        }
         Ok(())
     }
 }
@@ -100,7 +107,10 @@ impl qparse::Parseable<qparse::Display> for InputArgs {
                 multispace0,
             ),
         )
-        .map(|args| InputArgs { args })
+        .map(|args| InputArgs {
+            args,
+            va_args: false,
+        })
         .parse(input)
     }
 }
@@ -117,7 +127,8 @@ fn extern_global() {
                 args: vec![TyAndAttr {
                     attr: AttrList::new(vec![Attr::Sext]),
                     ty: i8.clone()
-                }]
+                }],
+                va_args: false,
             },
             output: AttrAndTy {
                 ty: i8.clone(),
