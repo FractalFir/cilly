@@ -1,7 +1,7 @@
 use crate::{
     AllocA, AttrAndTy, Binop, CallArgs, CastOp, Constant, FCmp, Fnc, FuncRef, I1_TY, ICmp,
     InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal,
-    TyAndAttr, Type, to_body,
+    ScalarTy, TyAndAttr, Type, to_body,
 };
 use std::num::NonZeroU32;
 mod binop;
@@ -238,7 +238,14 @@ impl FunctionBuilder {
                 rhs_ty: rhs_ty.clone(),
             });
         }
-        let dst = self.alloc_ssa_id(I1_TY.clone());
+        let dst = self.alloc_ssa_id(
+            ty.vec_elem_count()
+                .map(|e| Type::VectorTy {
+                    element_ty: ScalarTy::I1,
+                    element_count: e,
+                })
+                .unwrap_or_else(|| I1_TY.clone()),
+        );
         self.insert_at_pos(Instruction::ICmp {
             dst,
             ty,
@@ -263,7 +270,14 @@ impl FunctionBuilder {
                 rhs_ty: rhs_ty.clone(),
             });
         }
-        let dst = self.alloc_ssa_id(I1_TY.clone());
+        let dst = self.alloc_ssa_id(
+            ty.vec_elem_count()
+                .map(|e| Type::VectorTy {
+                    element_ty: ScalarTy::I1,
+                    element_count: e,
+                })
+                .unwrap_or_else(|| I1_TY.clone()),
+        );
         self.insert_at_pos(Instruction::FCmp {
             dst,
             ty,

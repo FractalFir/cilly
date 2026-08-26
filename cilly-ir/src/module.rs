@@ -1,8 +1,8 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    AttrAndTy, ConstInit, FunctionBuilder, GlobalIdent, InputArgs, Linkage, Locals, SourceLocation,
-    TyAndAttr, func::Fnc, global::Global,
+    AttrAndTy, ConstInit, FunctionBuilder, GlobalIdent, InputArgs, Linkage, Locals, Section,
+    SourceLocation, TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default)]
 pub struct Module {
@@ -39,8 +39,31 @@ impl Module {
                 crate::GlobalKind::Global
             },
             align,
+            thread_local: false,
+            link_section: Section::empty(),
         });
         GlobalRef(idx)
+    }
+    fn get_global_mut(&mut self, global: GlobalRef) -> Result<&mut Global, ModuleBuilderError> {
+        self.globals
+            .get_mut(global.0)
+            .ok_or(ModuleBuilderError::InvalidGlobalRef)
+    }
+    pub fn set_global_tls(
+        &mut self,
+        global: GlobalRef,
+        thread_local: bool,
+    ) -> Result<(), ModuleBuilderError> {
+        self.get_global_mut(global)?.thread_local = thread_local;
+        Ok(())
+    }
+    pub fn set_global_link_section(
+        &mut self,
+        global: GlobalRef,
+        link_section: &str,
+    ) -> Result<(), ModuleBuilderError> {
+        self.get_global_mut(global)?.link_section = Section(Some(link_section.to_string()));
+        Ok(())
     }
     pub fn set_global_init(
         &mut self,
@@ -61,11 +84,7 @@ impl Module {
                 )
             })
             .collect();
-        let globals = self
-            .globals
-            .get_mut(global.0)
-            .ok_or(ModuleBuilderError::InvalidGlobalRef)?;
-        globals.initializer = ConstInit::new(bytes, refs, ptr_size)?;
+        self.get_global_mut(global)?.initializer = ConstInit::new(bytes, refs, ptr_size)?;
         Ok(())
     }
     pub fn declare(

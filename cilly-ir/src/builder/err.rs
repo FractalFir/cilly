@@ -231,4 +231,8 @@ pub enum BuilderError {
         val_ty: Type,
         val: Operand,
     },
+    BswapByteSizeNotEven {
+        bitsize: u32,
+        val: Operand,
+    },
 }

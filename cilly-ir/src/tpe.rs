@@ -10,6 +10,8 @@ pub enum FloatTy {
     Half,
     #[qparse("double")]
     Double,
+    #[qparse("f128p")]
+    F128,
 }
 impl FloatTy {
     pub fn bitwidth(&self) -> u32 {
@@ -17,6 +19,7 @@ impl FloatTy {
             FloatTy::Float => u32::BITS,
             FloatTy::Half => u16::BITS,
             FloatTy::Double => u64::BITS,
+            FloatTy::F128 => u128::BITS,
         }
     }
 }
@@ -31,6 +34,9 @@ pub enum ScalarTy {
     Float(FloatTy),
 }
 impl ScalarTy {
+    pub const I1: Self = ScalarTy::Int(IntTy {
+        bitwidth: NonZeroU8::new(1).unwrap(),
+    });
     pub fn is_int(&self) -> bool {
         matches!(self, Self::Int(_))
     }
@@ -48,7 +54,6 @@ impl ScalarTy {
         }
     }
 }
-
 #[qparse_macros::qparse("i{bitwidth}")]
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
 pub struct IntTy {
@@ -75,6 +80,7 @@ impl qparse::Parseable<qparse::Display> for StructTy {
         todo!()
     }
 }
+
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
 pub enum Type {
@@ -95,8 +101,10 @@ pub enum Type {
     #[qparse("{0}")]
     Struct(StructTy),
 }
+pub static F16_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::Half));
 pub static F32_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::Float));
 pub static F64_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::Double));
+pub static F128_TY: Type = Type::ScalarTy(ScalarTy::Float(FloatTy::F128));
 pub static I1_TY: Type = Type::ix(NonZeroU8::new(1).unwrap());
 pub static I8_TY: Type = Type::ix(NonZeroU8::new(8).unwrap());
 pub static I64_TY: Type = Type::ix(NonZeroU8::new(64).unwrap());
@@ -174,5 +182,11 @@ impl Type {
             } => Some(element_ty.try_bitsize()? * element_count.get()),
             Type::Struct(_) => None,
         }
+    }
+    pub fn vec_elem_count(&self) -> Option<NonZeroU8> {
+        let Type::VectorTy { element_count, .. } = self else {
+            return None;
+        };
+        Some(*element_count)
     }
 }

@@ -2,7 +2,10 @@ use std::num::NonZeroU8;
 
 use arbitrary::Arbitrary;
 
-use crate::{BuilderError, F32_TY, F64_TY, GlobalIdent, I1_TY, IntTy, PTR_TY, ScalarTy, Type};
+use crate::{
+    BuilderError, F16_TY, F32_TY, F64_TY, F128_TY, GlobalIdent, I1_TY, IntTy, PTR_TY, ScalarTy,
+    Type,
+};
 
 #[qparse_macros::qparse("%v{0}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
@@ -26,10 +29,14 @@ pub enum Constant {
     False,
     #[qparse("{0}")]
     Int(i128),
+    #[qparse("0xH{0:x}")]
+    F16(u16),
     #[qparse("f0x{0:x}")]
     Float(u32),
     #[qparse("{0}")]
     Double(f64),
+    #[qparse("0xL{0:x}")]
+    F128(u128),
     #[qparse("undef")]
     Undef,
     #[qparse("null")]
@@ -45,6 +52,8 @@ impl Constant {
             Constant::Double(_) => todo!(),
             Constant::Undef => 0,
             Constant::Null => 0,
+            Constant::F16(_) => todo!(),
+            Constant::F128(_) => todo!(),
         }
     }
     pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
@@ -69,8 +78,10 @@ impl Constant {
                 }
                 Ok(hint_ty)
             }
+            Constant::F16(_) => Ok(&F16_TY),
             Constant::Float(_) => Ok(&F32_TY),
             Constant::Double(_) => Ok(&F64_TY),
+            Constant::F128(_) => Ok(&F128_TY),
             Constant::Undef => Ok(hint_ty),
             Constant::Null => Ok(&PTR_TY),
         }
