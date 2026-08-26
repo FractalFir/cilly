@@ -46,12 +46,20 @@ impl Module {
         &mut self,
         global: GlobalRef,
         bytes: Vec<u8>,
-        refs: Vec<(u32, GlobalRef)>,
+        refs: Vec<(u32, SymbolRef)>,
         ptr_size: u32,
     ) -> Result<(), ModuleBuilderError> {
         let refs = refs
             .into_iter()
-            .map(|(idx, r)| (idx, self.globals[r.0].name.clone()))
+            .map(|(idx, r)| {
+                (
+                    idx,
+                    match r {
+                        SymbolRef::GlobalRef(global_ref) => self.globals[global_ref.0].name.clone(),
+                        SymbolRef::FuncRef(func_ref) => self.functions[func_ref.0].name().clone(),
+                    },
+                )
+            })
             .collect();
         let globals = self
             .globals
@@ -131,7 +139,12 @@ pub enum ModuleBuilderError {
     InvalidSourceLoc,
     FuncFinished,
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct GlobalRef(usize);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FuncRef(pub(crate) usize);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SymbolRef {
+    GlobalRef(GlobalRef),
+    FuncRef(FuncRef),
+}

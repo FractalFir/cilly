@@ -60,14 +60,14 @@ pub struct StructTy {
 }
 impl std::fmt::Display for StructTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"{{")?;
+        write!(f, "{{")?;
         for (n, elem) in self.elems.iter().enumerate() {
             if n != 0 {
                 f.write_str(", ")?;
             }
             write!(f, "{elem}")?;
         }
-        write!(f,"}}")
+        write!(f, "}}")
     }
 }
 impl qparse::Parseable<qparse::Display> for StructTy {

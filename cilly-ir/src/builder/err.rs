@@ -227,4 +227,8 @@ pub enum BuilderError {
     IntOpOperandNot {
         ty: Type,
     },
+    SwitchValTyWtong {
+        val_ty: Type,
+        val: Operand,
+    },
 }

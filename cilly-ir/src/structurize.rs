@@ -131,6 +131,7 @@ impl StructureRegion {
                             }
                         }
                         Termiantor::BrCond { .. } => (),
+                        Termiantor::Switch { .. } => (),
                     }
                 }
                 // Unstructured CFG fallback.
@@ -192,6 +193,30 @@ impl StructureRegion {
                                     val: Operand::SSA(dst),
                                 },
                             ];
+                            CFGElem::Instructions {
+                                instrs: InstrList { instrs },
+                            }
+                        }
+                        Termiantor::Switch {
+                            default,
+                            ty,
+                            cases,
+                            val,
+                        } => {
+                            let (mut instrs, val) = switch_cases_select(
+                                default,
+                                cases,
+                                sass,
+                                &label_map,
+                                val,
+                                &ty,
+                                &dispatch_ty,
+                            );
+                            instrs.push(Instruction::StoreLocal {
+                                local: local.clone(),
+                                ty: dispatch_ty.clone(),
+                                val: val,
+                            });
                             CFGElem::Instructions {
                                 instrs: InstrList { instrs },
                             }
@@ -302,6 +327,65 @@ impl StructureRegion {
         Petgraph pre and post dominators?
         */
     }
+}
+fn switch_gen_select(
+    val: Operand,
+    val_ty: &Type,
+    case_val: Constant,
+    prev: Operand,
+    case_res: Constant,
+    sass: &mut Vec<Type>,
+    dispatch_ty: &Type,
+) -> ([Instruction; 2], Operand) {
+    let dst = SSAVal(sass.len() as _);
+    sass.push(I1_TY.clone());
+    let is_case = Instruction::ICmp {
+        dst,
+        ty: val_ty.clone(),
+        lhs: val,
+        rhs: Operand::Constant(case_val),
+        cmp: crate::ICmp::Eq,
+    };
+    let is_case_dst = dst;
+    let dst = SSAVal(sass.len() as _);
+    sass.push(dispatch_ty.clone());
+    let select = Instruction::Select {
+        dst,
+        cond: Operand::SSA(is_case_dst),
+        ty: dispatch_ty.clone(),
+        then: Operand::Constant(case_res),
+        els: prev,
+        cond_ty: I1_TY.clone(),
+    };
+    ([is_case, select], Operand::SSA(dst))
+}
+fn switch_cases_select(
+    default: Label,
+    mut cases: Vec<(Constant, Label)>,
+    sass: &mut Vec<Type>,
+    label_map: &HashMap<Label, Constant>,
+    val: Operand,
+    val_ty: &Type,
+    dispatch_ty: &Type,
+) -> (Vec<Instruction>, Operand) {
+    cases.sort_by_key(|(c, _)| c.as_i128());
+    let mut instrs = vec![];
+    let mut prev = Operand::Constant(label_map[&default].clone());
+    for (case_val, label) in cases {
+        let case_res = label_map[&label].clone();
+        let (ins, curr) = switch_gen_select(
+            val.clone(),
+            val_ty,
+            case_val,
+            prev,
+            case_res,
+            sass,
+            dispatch_ty,
+        );
+        instrs.extend(ins);
+        prev = curr;
+    }
+    (instrs, prev)
 }
 fn dce(entry: Label, unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
     let mut reachable = std::collections::HashSet::new();

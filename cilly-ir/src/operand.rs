@@ -36,6 +36,17 @@ pub enum Constant {
     Null,
 }
 impl Constant {
+    pub fn as_i128(&self) -> i128 {
+        match self {
+            Constant::True => 1,
+            Constant::False => 0,
+            Constant::Int(val) => *val,
+            Constant::Float(_) => todo!(),
+            Constant::Double(_) => todo!(),
+            Constant::Undef => 0,
+            Constant::Null => 0,
+        }
+    }
     pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
         match self {
             Constant::False | Constant::True => Ok(&I1_TY),
@@ -46,13 +57,15 @@ impl Constant {
                     });
                 };
                 let bits = bitwidth.get();
-                let int_ty_min = -(1i128 << (bits - 1));
-                let int_ty_max = ((1u128 << bits) - 1) as i128;
-                if !(int_ty_min <= *int && *int <= int_ty_max) {
-                    return Err(BuilderError::ConstIntOutOfRange {
-                        val: *int,
-                        bitwidth: *bitwidth,
-                    });
+                if bits < 128 {
+                    let int_ty_min = -(1i128 << (bits - 1));
+                    let int_ty_max = ((1u128 << bits) - 1) as i128;
+                    if !(int_ty_min <= *int && *int <= int_ty_max) {
+                        return Err(BuilderError::ConstIntOutOfRange {
+                            val: *int,
+                            bitwidth: *bitwidth,
+                        });
+                    }
                 }
                 Ok(hint_ty)
             }

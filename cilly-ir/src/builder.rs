@@ -1,7 +1,7 @@
 use crate::{
-    AllocA, AttrAndTy, Binop, CallArgs, CastOp, FCmp, Fnc, FuncRef, I1_TY, ICmp, InstrList,
-    Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal, TyAndAttr, Type,
-    to_body,
+    AllocA, AttrAndTy, Binop, CallArgs, CastOp, Constant, FCmp, Fnc, FuncRef, I1_TY, ICmp,
+    InstrList, Instruction, Intrinsic, Label, Local, Locals, Module, Operand, PTR_TY, SSAVal,
+    TyAndAttr, Type, to_body,
 };
 use std::num::NonZeroU32;
 mod binop;
@@ -114,6 +114,32 @@ impl FunctionBuilder {
         self.check_label(then)?;
         self.check_label(els)?;
         self.build_term(Termiantor::BrCond { cond, then, els })
+    }
+    pub fn build_switch(
+        &mut self,
+        default: Label,
+        ty: Type,
+        cases: Vec<(Constant, Label)>,
+        val: Operand,
+    ) -> Result<(), BuilderError> {
+        self.check_label(default)?;
+        for (cst, case) in &cases {
+            self.check_label(*case)?;
+            cst.get_ty(&ty)?;
+        }
+        let val_ty = self.get_type(&val, &ty)?;
+        if val_ty != &ty {
+            return Err(BuilderError::SwitchValTyWtong {
+                val_ty: val_ty.clone(),
+                val,
+            });
+        }
+        self.build_term(Termiantor::Switch {
+            default,
+            ty,
+            cases,
+            val,
+        })
     }
     pub fn build_ret(&mut self, val: Option<Operand>) -> Result<(), BuilderError> {
         match val {
@@ -583,6 +609,12 @@ pub(crate) enum Termiantor {
         then: Label,
         els: Label,
     },
+    Switch {
+        default: Label,
+        ty: Type,
+        cases: Vec<(Constant, Label)>,
+        val: Operand,
+    },
     Trap,
 }
 impl Termiantor {
@@ -591,6 +623,9 @@ impl Termiantor {
             Termiantor::VoidRet | Termiantor::Ret(_) | Termiantor::Trap => vec![],
             Termiantor::Br(label) => vec![*label],
             Termiantor::BrCond { cond: _, then, els } => vec![*then, *els],
+            Termiantor::Switch { default, cases, .. } => std::iter::once(*default)
+                .chain(cases.iter().map(|(_, l)| *l))
+                .collect::<_>(),
         }
     }
 }

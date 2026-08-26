@@ -35,6 +35,14 @@ pub(crate) enum Fnc {
         body: Body,
     },
 }
+impl Fnc {
+    pub(crate) fn name(&self) -> &GlobalIdent {
+        match self {
+            Self::Decl { name, .. } => name,
+            Self::Def { name, .. } => name,
+        }
+    }
+}
 #[derive(Clone)]
 pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
