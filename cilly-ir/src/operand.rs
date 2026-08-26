@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 
 use arbitrary::Arbitrary;
 
-use crate::{BuilderError, F32_TY, F64_TY, GlobalIdent, I1_TY, IntTy, ScalarTy, Type};
+use crate::{BuilderError, F32_TY, F64_TY, GlobalIdent, I1_TY, IntTy, PTR_TY, ScalarTy, Type};
 
 #[qparse_macros::qparse("%v{0}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
@@ -30,6 +30,10 @@ pub enum Constant {
     Float(u32),
     #[qparse("{0}")]
     Double(f64),
+    #[qparse("undef")]
+    Undef,
+    #[qparse("null")]
+    Null,
 }
 impl Constant {
     pub fn get_ty<'ty>(&self, hint_ty: &'ty Type) -> Result<&'ty Type, BuilderError> {
@@ -54,6 +58,8 @@ impl Constant {
             }
             Constant::Float(_) => Ok(&F32_TY),
             Constant::Double(_) => Ok(&F64_TY),
+            Constant::Undef => Ok(hint_ty),
+            Constant::Null => Ok(&PTR_TY),
         }
     }
 }

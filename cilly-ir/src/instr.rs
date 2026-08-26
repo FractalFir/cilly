@@ -231,7 +231,7 @@ pub(crate) enum Instruction {
         val: Operand,
         dst_ty: Type,
     },
-     #[qparse(
+    #[qparse(
         "call void @llvm.memcpy.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
     )]
     MemCpy {
@@ -324,7 +324,7 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         volatile: bool,
     },
-   
+
     #[qparse("store atomic {ty} {val}, ptr {ptr} {ordering}, align {align}")]
     StoreAtomic {
         ptr: Operand,
@@ -357,5 +357,21 @@ pub(crate) enum Instruction {
         val: Operand,
         ordering: AtomOrdering,
         align: NonZeroU32,
+    },
+    #[qparse("{dst} = extractvalue {aggregate_ty} {aggregate}, {index}")]
+    ExtractValue {
+        dst: SSAVal,
+        aggregate_ty: Type,
+        aggregate: Operand,
+        index: u64,
+    },
+    #[qparse("{dst} = insertvalue {aggregate_ty} {aggregate}, {value_ty} {element}, {index}")]
+    InsertValue {
+        dst: SSAVal,
+        aggregate_ty: Type,
+        value_ty: Type,
+        aggregate: Operand,
+        element: Operand,
+        index: u64,
     },
 }

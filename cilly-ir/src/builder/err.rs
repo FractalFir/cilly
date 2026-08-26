@@ -202,7 +202,29 @@ pub enum BuilderError {
         callee: Operand,
         calle_ty: Type,
     },
-    PtrOffsetOffsetOperandWrongType { off: Operand, off_ty: Type, got: Type },
-    PtrOffsetOffsetWrongType { off_ty: Type },
-    PtrOffsetPtrIsNotPtr { ptr_ty: Type, ptr: Operand },
+    PtrOffsetOffsetOperandWrongType {
+        off: Operand,
+        off_ty: Type,
+        got: Type,
+    },
+    PtrOffsetOffsetWrongType {
+        off_ty: Type,
+    },
+    PtrOffsetPtrIsNotPtr {
+        ptr_ty: Type,
+        ptr: Operand,
+    },
+    ExtractValueAggregateTyNotStruct {
+        aggregate_ty: Type,
+    },
+    FieldIndexOOB {
+        aggregate_ty: Type,
+        index: u64,
+    },
+    IntOpTypeNotInt {
+        ty: Type,
+    },
+    IntOpOperandNot {
+        ty: Type,
+    },
 }

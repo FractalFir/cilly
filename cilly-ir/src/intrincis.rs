@@ -283,11 +283,11 @@ impl Intrinsic {
             | Intrinsic::SSubWithOverflow { ty, .. }
             | Intrinsic::USubWithOverflow { ty, .. }
             | Intrinsic::SMulWithOverflow { ty, .. }
-            | Intrinsic::UMulWithOverflow { ty, .. }
-            | Intrinsic::SAddSat { ty, .. }
+            | Intrinsic::UMulWithOverflow { ty, .. } => Type::ty_and_flag(ty.clone()),
+            Intrinsic::SAddSat { ty, .. }
             | Intrinsic::UAddSat { ty, .. }
             | Intrinsic::SSubSat { ty, .. }
-            | Intrinsic::USubSat { ty, .. } => Type::ty_and_flag(ty.clone()),
+            | Intrinsic::USubSat { ty, .. } => ty.clone(),
             Intrinsic::Ctlz { ty, .. }
             | Intrinsic::Cttz { ty, .. }
             | Intrinsic::Ctpop { ty, .. }

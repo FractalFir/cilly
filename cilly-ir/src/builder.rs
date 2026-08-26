@@ -9,8 +9,8 @@ mod cast;
 mod cmp;
 mod err;
 pub use err::*;
-mod mem;
 mod intrinsics;
+mod mem;
 pub struct FunctionBuilder {
     pub(crate) id: FuncRef,
     pub(crate) fnc: Fnc,
@@ -349,24 +349,39 @@ impl FunctionBuilder {
         })?;
         Ok(Operand::SSA(dst))
     }
-    pub fn ptr_offset(&mut self,
+    pub fn ptr_offset(
+        &mut self,
         ptr: Operand,
         off_ty: Type,
         off: Operand,
-        inbounds: bool)->Result<Operand, BuilderError>{
+        inbounds: bool,
+    ) -> Result<Operand, BuilderError> {
         let off_got_ty = self.get_type(&off, &off_ty)?;
         if off_ty != *off_got_ty {
-            return Err(BuilderError::PtrOffsetOffsetOperandWrongType{off, off_ty:off_ty.clone(), got:off_got_ty.clone()});
+            return Err(BuilderError::PtrOffsetOffsetOperandWrongType {
+                off,
+                off_ty: off_ty.clone(),
+                got: off_got_ty.clone(),
+            });
         }
-        if !off_ty.is_int(){
-            return Err(BuilderError::PtrOffsetOffsetWrongType{off_ty});
+        if !off_ty.is_int() {
+            return Err(BuilderError::PtrOffsetOffsetWrongType { off_ty });
         }
-        let ptr_ty = self.get_type(&ptr,&PTR_TY)?;
-        if !ptr_ty.is_ptr(){
-            return Err(BuilderError::PtrOffsetPtrIsNotPtr{ptr_ty:ptr_ty.clone(),ptr});
+        let ptr_ty = self.get_type(&ptr, &PTR_TY)?;
+        if !ptr_ty.is_ptr() {
+            return Err(BuilderError::PtrOffsetPtrIsNotPtr {
+                ptr_ty: ptr_ty.clone(),
+                ptr,
+            });
         }
         let dst = self.alloc_ssa_id(ptr_ty.clone());
-        self.insert_at_pos(Instruction::PtrOffset { dst, ptr, off_ty, off, inbounds })?;
+        self.insert_at_pos(Instruction::PtrOffset {
+            dst,
+            ptr,
+            off_ty,
+            off,
+            inbounds,
+        })?;
         Ok(Operand::SSA(dst))
     }
     // select
@@ -449,6 +464,51 @@ impl FunctionBuilder {
             });
         }
         self.insert_at_pos(Instruction::StoreLocal { local, ty, val })
+    }
+    pub fn build_insertvalue(
+        &mut self,
+        aggregate_ty: Type,
+        value_ty: Type,
+        aggregate: Operand,
+        element: Operand,
+        index: u64,
+    ) -> Result<Operand, BuilderError> {
+        // FIXME: better error checks
+        let dst = self.alloc_ssa_id(aggregate_ty.clone());
+        self.insert_at_pos(Instruction::InsertValue {
+            dst,
+            aggregate_ty,
+            value_ty,
+            aggregate,
+            element,
+            index,
+        })?;
+        Ok(Operand::SSA(dst))
+    }
+    pub fn build_extractvalue(
+        &mut self,
+        aggregate_ty: Type,
+        aggregate: Operand,
+        index: u64,
+    ) -> Result<Operand, BuilderError> {
+        let Some(fields) = aggregate_ty.struct_fields() else {
+            return Err(BuilderError::ExtractValueAggregateTyNotStruct { aggregate_ty });
+        };
+        let fld = fields
+            .get(index as usize)
+            .ok_or(BuilderError::FieldIndexOOB {
+                aggregate_ty: aggregate_ty.clone(),
+                index,
+            })?;
+        let dst = self.alloc_ssa_id(fld.clone());
+        // FIXME: better error checks
+        self.insert_at_pos(Instruction::ExtractValue {
+            dst,
+            aggregate_ty,
+            aggregate,
+            index,
+        })?;
+        Ok(Operand::SSA(dst))
     }
     // Position-less
     pub fn add_alloca(

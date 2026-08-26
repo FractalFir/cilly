@@ -60,7 +60,14 @@ pub struct StructTy {
 }
 impl std::fmt::Display for StructTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f,"{{")?;
+        for (n, elem) in self.elems.iter().enumerate() {
+            if n != 0 {
+                f.write_str(", ")?;
+            }
+            write!(f, "{elem}")?;
+        }
+        write!(f,"}}")
     }
 }
 impl qparse::Parseable<qparse::Display> for StructTy {
@@ -103,6 +110,9 @@ impl Type {
             elems: vec![ty, I1_TY.clone()],
         })
     }
+    pub fn strct(elems: Vec<Type>) -> Self {
+        Self::Struct(StructTy { elems })
+    }
     pub fn is_int(&self) -> bool {
         match self {
             Self::ScalarTy(ScalarTy::Int(_)) => true,
@@ -144,6 +154,12 @@ impl Type {
     pub fn is_void(&self) -> bool {
         matches!(self, Self::Void)
     }
+    pub fn struct_fields(&self) -> Option<&[Type]> {
+        let Self::Struct(strct) = self else {
+            return None;
+        };
+        Some(&strct.elems[..])
+    }
     pub fn try_bitsize(&self) -> Option<u32> {
         match self {
             Type::Void => Some(0),
@@ -151,7 +167,7 @@ impl Type {
             Type::VectorTy {
                 element_ty,
                 element_count,
-            }  => Some(element_ty.try_bitsize()? * element_count.get() as u32),
+            } => Some(element_ty.try_bitsize()? * element_count.get() as u32),
             Type::ArrayTy {
                 element_ty,
                 element_count,
