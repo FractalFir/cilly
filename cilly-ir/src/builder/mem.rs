@@ -247,10 +247,10 @@ impl FunctionBuilder {
             })?;
         }
         let val_ty = self.get_type(&val, &I8_TY)?;
-        if val_ty.is_int() {
+        if !val_ty.is_int() {
             return Err(BuilderError::MemSetValNotInt {
-                len_ty: got_len_ty.clone(),
-                len,
+                val_ty: val_ty.clone(),
+                val,
             })?;
         }
         self.insert_at_pos(Instruction::MemSet {

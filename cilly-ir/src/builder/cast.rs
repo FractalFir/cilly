@@ -165,10 +165,10 @@ impl FunctionBuilder {
         val: Operand,
         dst_ty: Type,
     ) -> Result<Operand, BuilderError> {
-        if !dst_ty.is_ptr() {
+        if !dst_ty.is_int() {
             return Err(BuilderError::Ptr2IntCastOutputNotInt { output: dst_ty });
         }
-        if !src_ty.is_int() {
+        if !src_ty.is_ptr() {
             return Err(BuilderError::Ptr2IntCastInputNotPtr { input: src_ty });
         }
         self.build_cast(CastOp::PtrToInt, src_ty, val, dst_ty)

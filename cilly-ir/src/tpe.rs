@@ -1,4 +1,4 @@
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU32};
 
 use arbitrary::Arbitrary;
 #[qparse_macros::qparse("")]
@@ -80,6 +80,11 @@ pub enum Type {
         element_ty: ScalarTy,
         element_count: NonZeroU8,
     },
+    #[qparse("[{element_count} x {element_ty}]")]
+    ArrayTy {
+        element_ty: ScalarTy,
+        element_count: NonZeroU32,
+    },
     #[qparse("{0}")]
     Struct(StructTy),
 }
@@ -146,7 +151,11 @@ impl Type {
             Type::VectorTy {
                 element_ty,
                 element_count,
-            } => Some(element_ty.try_bitsize()? * element_count.get() as u32),
+            }  => Some(element_ty.try_bitsize()? * element_count.get() as u32),
+            Type::ArrayTy {
+                element_ty,
+                element_count,
+            } => Some(element_ty.try_bitsize()? * element_count.get()),
             Type::Struct(_) => None,
         }
     }

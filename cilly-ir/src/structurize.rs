@@ -103,6 +103,10 @@ impl StructureRegion {
                             s.elems.push(CFGElem::VoidRet);
                             return s;
                         }
+                        Termiantor::Trap => {
+                            s.elems.push(CFGElem::Trap);
+                            return s;
+                        }
                         Termiantor::Ret(operand) => {
                             s.elems.push(CFGElem::Return {
                                 ty: ret_ty.clone(),
@@ -153,6 +157,7 @@ impl StructureRegion {
                     let mut region = region.to_body(locals, sass, ret_ty);
                     // store the dispatcher
                     let term = match term {
+                        Termiantor::Trap => CFGElem::Trap,
                         Termiantor::VoidRet => CFGElem::VoidRet,
                         Termiantor::Ret(operand) => CFGElem::Return {
                             ty: ret_ty.clone(),

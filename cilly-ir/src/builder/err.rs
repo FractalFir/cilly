@@ -195,8 +195,8 @@ pub enum BuilderError {
         len: Operand,
     },
     MemSetValNotInt {
-        len_ty: Type,
-        len: Operand,
+        val_ty: Type,
+        val: Operand,
     },
     CalleeNotPtrOrFn {
         callee: Operand,

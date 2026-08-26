@@ -1,4 +1,4 @@
-use std::{fmt::Write, num::NonZeroU32};
+use std::num::NonZeroU32;
 
 use arbitrary::Arbitrary;
 
@@ -10,10 +10,10 @@ pub(crate) struct CallArgs {
 impl std::fmt::Display for CallArgs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (n, arg) in self.args.iter().enumerate() {
-            write!(f, "{}{}", arg.0, arg.1)?;
             if n != 0 {
                 f.write_str(", ")?;
             }
+            write!(f, "{}{}", arg.0, arg.1)?;
         }
         Ok(())
     }
@@ -231,6 +231,36 @@ pub(crate) enum Instruction {
         val: Operand,
         dst_ty: Type,
     },
+     #[qparse(
+        "call void @llvm.memcpy.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemCpy {
+        dest: Operand,
+        src: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
+    #[qparse(
+        "call void @llvm.memmove.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemMove {
+        dest: Operand,
+        src: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
+    #[qparse(
+        "call void @llvm.memset.p0.{len_ty}(ptr {dest}, i8 {val}, {len_ty} {len}, i1 {volatile})"
+    )]
+    MemSet {
+        dest: Operand,
+        val: Operand,
+        len_ty: Type,
+        len: Operand,
+        volatile: bool,
+    },
     #[qparse("{dst} = call {intrinsic}")]
     CallIntrinsic { dst: SSAVal, intrinsic: Intrinsic },
     #[qparse("call void {callee}({call_args})")]
@@ -294,36 +324,7 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         volatile: bool,
     },
-    #[qparse(
-        "call @llvm.memcpy.p0.p0.len_ty(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
-    )]
-    MemCpy {
-        dest: Operand,
-        src: Operand,
-        len_ty: Type,
-        len: Operand,
-        volatile: bool,
-    },
-    #[qparse(
-        "call @llvm.memmove.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
-    )]
-    MemMove {
-        dest: Operand,
-        src: Operand,
-        len_ty: Type,
-        len: Operand,
-        volatile: bool,
-    },
-    #[qparse(
-        "declare void @llvm.memset.p0.{len_ty}(ptr {dest}, i8 {val}, {len_ty} {len}, i1 {volatile})"
-    )]
-    MemSet {
-        dest: Operand,
-        val: Operand,
-        len_ty: Type,
-        len: Operand,
-        volatile: bool,
-    },
+   
     #[qparse("store atomic {ty} {val}, ptr {ptr} {ordering}, align {align}")]
     StoreAtomic {
         ptr: Operand,

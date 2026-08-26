@@ -10,6 +10,7 @@ mod cmp;
 mod err;
 pub use err::*;
 mod mem;
+mod intrinsics;
 pub struct FunctionBuilder {
     pub(crate) id: FuncRef,
     pub(crate) fnc: Fnc,
@@ -93,6 +94,9 @@ impl FunctionBuilder {
     pub fn build_br(&mut self, label: Label) -> Result<(), BuilderError> {
         self.check_label(label)?;
         self.build_term(Termiantor::Br(label))
+    }
+    pub fn build_trap(&mut self) -> Result<(), BuilderError> {
+        self.build_term(Termiantor::Trap)
     }
     pub fn build_condbr(
         &mut self,
@@ -519,11 +523,12 @@ pub(crate) enum Termiantor {
         then: Label,
         els: Label,
     },
+    Trap,
 }
 impl Termiantor {
     pub fn sucessors(&self) -> Vec<Label> {
         match self {
-            Termiantor::VoidRet | Termiantor::Ret(_) => vec![],
+            Termiantor::VoidRet | Termiantor::Ret(_) | Termiantor::Trap => vec![],
             Termiantor::Br(label) => vec![*label],
             Termiantor::BrCond { cond: _, then, els } => vec![*then, *els],
         }
