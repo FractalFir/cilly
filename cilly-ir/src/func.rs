@@ -13,7 +13,7 @@ use crate::{Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, lo
 #[qparse_macros::qparse("")]
 #[derive(Clone)]
 pub(crate) enum Fnc {
-    #[qparse("{src_loc}declare {linkage} {output} {name} ({inputs})")]
+    #[qparse("{src_loc}declare {linkage}{output} {name} ({inputs})")]
     Decl {
         src_loc: SourceLocation,
         linkage: Linkage,
@@ -22,7 +22,7 @@ pub(crate) enum Fnc {
         inputs: InputArgs,
     },
     #[qparse(
-        "{src_loc}define {linkage} {output} {name} ({inputs}){{
+        "{src_loc}define {linkage}{output} {name} ({inputs}){{
 {locals}{body}}}"
     )]
     Def {
@@ -36,6 +36,9 @@ pub(crate) enum Fnc {
     },
 }
 impl Fnc {
+    pub(crate) fn is_def(&self) -> bool {
+        matches!(self, Fnc::Def { .. })
+    }
     pub(crate) fn name(&self) -> &GlobalIdent {
         match self {
             Self::Decl { name, .. } => name,

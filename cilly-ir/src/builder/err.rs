@@ -235,7 +235,15 @@ pub enum BuilderError {
         bitsize: u32,
         val: Operand,
     },
-    InsertElementArgNotVec { vector_ty: Type },
-    InsertElementArgNotVecOfVecTy { expected: Type, got: ScalarTy },
-    InsertElementElementOperandWrongTy { expected: Type, got: Type },
+    InsertElementArgNotVec {
+        vector_ty: Type,
+    },
+    InsertElementArgNotVecOfVecTy {
+        expected: Type,
+        got: ScalarTy,
+    },
+    InsertElementElementOperandWrongTy {
+        expected: Type,
+        got: Type,
+    },
 }

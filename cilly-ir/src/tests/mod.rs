@@ -107,4 +107,5 @@ fn declare_select() {
     builder.finish(&mut module);
     println!("{module}");
     assert_eq!(module.to_string(), "");
+    module.llc().unwrap();
 }

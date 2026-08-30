@@ -13,12 +13,14 @@ use nom::{
 use crate::{GlobalIdent, Linkage, ModuleBuilderError};
 
 #[qparse_macros::qparse("")]
+#[derive(Clone, Copy)]
 pub(crate) enum GlobalKind {
     #[qparse("global")]
     Global,
     #[qparse("constant")]
     Constant,
 }
+#[derive(Clone)]
 pub(crate) struct Section(pub(crate) Option<String>);
 impl std::fmt::Display for Section {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -39,8 +41,9 @@ impl Section {
     }
 }
 #[qparse_macros::qparse(
-    "{name} = {linkage} {thread_local:present(thread_local )}{kind} {initializer},{link_section} align {align}"
+    "{name} = {linkage}{thread_local:present(thread_local )}{kind} {initializer},{link_section} align {align}"
 )]
+#[derive(Clone)]
 pub(crate) struct Global {
     pub(crate) name: GlobalIdent,
     pub(crate) linkage: Linkage,
@@ -152,6 +155,9 @@ impl qparse::Parseable<qparse::Display> for ConstInit {
 }
 
 impl ConstInit {
+    pub(crate) fn is_present(&self) -> bool {
+        !self.fragments.is_empty()
+    }
     pub(crate) fn new(
         bytes: Vec<u8>,
         mut refs: Vec<(u32, GlobalIdent)>,

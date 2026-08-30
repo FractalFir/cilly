@@ -11,5 +11,6 @@ qparse = { git = "https://github.com/FractalFir/qparse.git" }
 qparse_macros = { git = "https://github.com/FractalFir/qparse.git" }
 serde = { version = "1.0.229", features = ["derive"] }
 arbitrary = { version = "1.4.2", features = ["derive"] }
+tempfile = "3.27.0"
 [dev-dependencies]
 rand = "0.10.2"

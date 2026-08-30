@@ -342,14 +342,20 @@ impl FunctionBuilder {
         index: Operand,
     ) -> Result<Operand, BuilderError> {
         let Some(ety) = vector_ty.vec_elem_ty() else {
-            return Err(BuilderError::InsertElementArgNotVec{vector_ty});
+            return Err(BuilderError::InsertElementArgNotVec { vector_ty });
         };
-        if Type::ScalarTy(ety.clone()) != element_ty{
-            return Err(BuilderError::InsertElementArgNotVecOfVecTy{expected:element_ty, got:ety});
+        if Type::ScalarTy(ety.clone()) != element_ty {
+            return Err(BuilderError::InsertElementArgNotVecOfVecTy {
+                expected: element_ty,
+                got: ety,
+            });
         }
         let ety = self.get_type(&element, &element_ty)?;
-        if *ety != element_ty{
-            return Err(BuilderError::InsertElementElementOperandWrongTy{expected:element_ty.clone(), got:ety.clone()})
+        if *ety != element_ty {
+            return Err(BuilderError::InsertElementElementOperandWrongTy {
+                expected: element_ty.clone(),
+                got: ety.clone(),
+            });
         }
         let dst = self.alloc_ssa_id(vector_ty.clone());
         self.insert_at_pos(Instruction::InsertElement {

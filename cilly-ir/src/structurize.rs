@@ -7,15 +7,23 @@
 //! a "node" of an irreducible CFG, and also contain another, disjoint irrudicible CFG as
 //! one of it's arms.
 //!
+use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
-use std::{collections::HashMap, num::NonZeroU8};
 
-use crate::{
-    BasicBlock, Body, CFGElem, Constant, I1_TY, InstrList, Instruction, Label, Locals, Operand,
-    SSAVal, Switch, Termiantor, Type,
+use petgraph::{
+    Direction,
+    algo::dominators::Dominators,
+    graph::{DiGraph, NodeIndex},
 };
 
+use crate::{
+    BasicBlock, Body, I1_TY, InstrList, Instruction, Label, Locals,
+    Operand::{self, SSA},
+    SSAVal, Termiantor, Type,
+};
+
+mod fallback;
 pub(crate) fn to_body(
     bbs: Vec<BasicBlock>,
     locals: &mut Locals,
@@ -41,6 +49,8 @@ pub(crate) fn to_body(
     dce(entry, &mut unstructured);
     // then, we find linear regions and flatten em
     linearize(entry, &mut unstructured);
+    // Simple cleanup for degenerate, but valid cases
+    simplyfy_terms(&mut unstructured);
     let mut res = StructureRegion::Unstructured {
         entry,
         unstructured,
@@ -51,7 +61,7 @@ pub(crate) fn to_body(
     // And turn it to a body, inserting fallbacks if need be.
     res.to_body(locals, sass, ret_ty)
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum StructureRegion {
     OpSeq(InstrList),
     Unstructured {
@@ -60,401 +70,244 @@ enum StructureRegion {
         exit: Label,
     },
     Seq(Vec<Self>),
-}
-fn label_map(labels: &HashMap<Label, impl Sized>, exit: Label) -> HashMap<Label, Constant> {
-    let mut map: HashMap<Label, Constant> = labels
-        .iter()
-        .map(|(l, _)| l)
-        .enumerate()
-        .map(|(idx, l)| (*l, Constant::Int(idx as i128)))
-        .collect();
-    map.insert(exit, Constant::Int(map.len() as _));
-    map
+    If {
+        cond: crate::Operand,
+        then: Box<StructureRegion>,
+        label: Label,
+    },
 }
 impl StructureRegion {
-    fn to_body(self, locals: &mut Locals, sass: &mut Vec<Type>, ret_ty: &Type) -> Body {
-        match self {
-            StructureRegion::Seq(mut seq) => {
-                assert!(
-                    !seq.is_empty(),
-                    "structurizer has an invalid input: 0-length control flow sequence"
-                );
-                let mut body = seq.remove(0).to_body(locals, sass, ret_ty);
-                for s in seq {
-                    body.elems.extend(s.to_body(locals, sass, ret_ty).elems);
-                }
-                body
-            }
-            StructureRegion::OpSeq(instrs) => {
-                let cfg = CFGElem::Instructions { instrs };
-                Body { elems: vec![cfg] }
-            }
-            StructureRegion::Unstructured {
-                entry,
-                unstructured,
-                exit,
-            } => {
-                // special case - one unstructured - no fallback needed.
-                if unstructured.len() == 1 {
-                    let (s, t) = unstructured[&entry].clone();
-                    let mut s = s.to_body(locals, sass, ret_ty);
-                    match t {
-                        Termiantor::VoidRet => {
-                            s.elems.push(CFGElem::VoidRet);
-                            return s;
-                        }
-                        Termiantor::Trap => {
-                            s.elems.push(CFGElem::Trap);
-                            return s;
-                        }
-                        Termiantor::Ret(operand) => {
-                            s.elems.push(CFGElem::Return {
-                                ty: ret_ty.clone(),
-                                operand,
-                            });
-                            return s;
-                        }
-                        Termiantor::Br(label) => {
-                            if label == exit {
-                                return s;
-                            } else {
-                                assert_eq!(
-                                    label, entry,
-                                    "Invalid unstructured region, contains jump to missing label {label}"
-                                );
-                                let l = CFGElem::DoWhile {
-                                    cond: Operand::Constant(Constant::True),
-                                    label,
-                                    body: s,
-                                };
-                                return Body { elems: vec![l] };
-                            }
-                        }
-                        Termiantor::BrCond { .. } => (),
-                        Termiantor::Switch { .. } => (),
-                    }
-                }
-                // Unstructured CFG fallback.
-                // first - how many blocks are there(ergo - size of our dispatch type?)
-                let bits = usize::BITS - unstructured.len().leading_zeros();
-                // We round up to bytes
-                let bytes = bits.div_ceil(8);
-                // Then try to pick a power-of-2 bitesize - 2^ceil(log2(x))
-                let bytes = bytes.next_power_of_two();
-                // Then round back to bits
-                let bits = bytes * 8;
-                let dispatch_ty = Type::ix(NonZeroU8::new(bits as _).unwrap());
-                // dispatch var
-                let local = locals.add_local(dispatch_ty.clone());
-                let mut cases = vec![];
-                let label_map = label_map(&unstructured, exit);
-                // An important check - sometimes, the control flow diverges entirely(no jump to exit).
-                let no_exit = !unstructured
-                    .iter()
-                    .map(|(_, (_, t))| t.sucessors())
-                    .flatten()
-                    .any(|s| s == exit);
-                for (label, (region, term)) in unstructured.into_iter() {
-                    let mut region = region.to_body(locals, sass, ret_ty);
-                    // store the dispatcher
-                    let term = match term {
-                        Termiantor::Trap => CFGElem::Trap,
-                        Termiantor::VoidRet => CFGElem::VoidRet,
-                        Termiantor::Ret(operand) => CFGElem::Return {
-                            ty: ret_ty.clone(),
-                            operand,
-                        },
-                        Termiantor::Br(label) => {
-                            let val = label_map[&label].clone();
-                            let instrs = vec![Instruction::StoreLocal {
-                                local: local.clone(),
-                                ty: dispatch_ty.clone(),
-                                val: Operand::Constant(val),
-                            }];
-                            CFGElem::Instructions {
-                                instrs: InstrList { instrs },
-                            }
-                        }
-                        Termiantor::BrCond { cond, then, els } => {
-                            let dst = SSAVal(sass.len() as u32);
-                            sass.push(dispatch_ty.clone());
-                            let instrs = vec![
-                                Instruction::Select {
-                                    dst,
-                                    cond,
-                                    cond_ty: I1_TY.clone(),
-                                    ty: dispatch_ty.clone(),
-                                    then: Operand::Constant(label_map[&then].clone()),
-                                    els: Operand::Constant(label_map[&els].clone()),
-                                },
-                                Instruction::StoreLocal {
-                                    local: local.clone(),
-                                    ty: dispatch_ty.clone(),
-                                    val: Operand::SSA(dst),
-                                },
-                            ];
-                            CFGElem::Instructions {
-                                instrs: InstrList { instrs },
-                            }
-                        }
-                        Termiantor::Switch {
-                            default,
-                            ty,
-                            cases,
-                            val,
-                        } => {
-                            let (mut instrs, val) = switch_cases_select(
-                                default,
-                                cases,
-                                sass,
-                                &label_map,
-                                val,
-                                &ty,
-                                &dispatch_ty,
-                            );
-                            instrs.push(Instruction::StoreLocal {
-                                local: local.clone(),
-                                ty: dispatch_ty.clone(),
-                                val: val,
-                            });
-                            CFGElem::Instructions {
-                                instrs: InstrList { instrs },
-                            }
-                        }
-                    };
-                    region.elems.push(term);
-                    let cst = label_map[&label].clone();
-                    cases.push((cst, label, region));
-                }
-                // dispatch instr - for the switch
-                let val = crate::SSAVal(sass.len() as u32);
-                sass.push(dispatch_ty.clone());
-                let load_val = Instruction::LoadLocal {
-                    dst: val,
-                    local,
-                    ty: dispatch_ty.clone(),
-                };
-                // we could use one of the labels as the default - would be safe and alll... but it is safer to trap on it.
-                let switch = Switch {
-                    default_label: entry,
-                    default: Body {
-                        elems: vec![CFGElem::Trap],
-                    },
-                    ty: dispatch_ty.clone(),
-                    cases,
-                    val: Operand::SSA(val),
-                };
-                // besdies dispatching, we also need to check if the loop is done loopin
-                let val = crate::SSAVal(sass.len() as u32);
-                sass.push(dispatch_ty.clone());
-                let load_val2 = Instruction::LoadLocal {
-                    dst: val,
-                    local,
-                    ty: dispatch_ty.clone(),
-                };
-                let cond = crate::SSAVal(sass.len() as u32);
-                sass.push(I1_TY.clone());
-                let check = Instruction::ICmp {
-                    dst: cond,
-                    ty: dispatch_ty.clone(),
-                    lhs: Operand::SSA(val),
-                    rhs: Operand::Constant(label_map[&exit].clone()),
-                    cmp: crate::ICmp::Ne,
-                };
-                let body = Body {
-                    elems: vec![
-                        CFGElem::Instructions {
-                            instrs: InstrList {
-                                instrs: vec![load_val],
-                            },
-                        },
-                        CFGElem::Switch(switch),
-                        CFGElem::Instructions {
-                            instrs: InstrList {
-                                instrs: vec![load_val2, check],
-                            },
-                        },
-                    ],
-                };
-                let dloop = CFGElem::DoWhile {
-                    cond: Operand::SSA(cond),
-                    label: entry,
-                    body,
-                };
-                let set_entry = Instruction::StoreLocal {
-                    local,
-                    ty: dispatch_ty,
-                    val: Operand::Constant(label_map[&entry].clone()),
-                };
-                let mut elems = vec![
-                    CFGElem::Instructions {
-                        instrs: InstrList {
-                            instrs: vec![set_entry],
-                        },
-                    },
-                    dloop,
-                ];
-                // for some statisitcs about the ammout of time a fallback was needed
-                #[cfg(test)]
-                {
-                    FALLBACK_COUNTER.with(|v| v.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
-                }
-                // fallback - what happens if nobody jumps to exit?
-                if no_exit {
-                    elems.push(CFGElem::Trap);
-                }
-                Body { elems }
-            }
-        }
-    }
-    fn structurize(&mut self, locals: &mut Locals, sass: &mut Vec<Type>, ret_ty: &Type) {
+    fn structurize(&mut self, locals: &mut Locals, ssas: &mut Vec<Type>, ret_ty: &Type) {
         let (entry, unstructured, exit) = match self {
             StructureRegion::OpSeq(_) => return (),
             StructureRegion::Seq(seq) => {
                 return seq
                     .iter_mut()
-                    .for_each(|s| s.structurize(locals, sass, ret_ty));
+                    .for_each(|s| s.structurize(locals, ssas, ret_ty));
             }
             StructureRegion::Unstructured {
                 entry,
                 unstructured,
                 exit,
             } => (entry, unstructured, exit),
+            StructureRegion::If { then, .. } => return then.structurize(locals, ssas, ret_ty),
         };
 
-        // Maybe convert the Unstructured into a nested tree of unstrurctured-s?
-        /*
-        Petgraph pre and post dominators?
-        */
-    }
-}
-fn switch_gen_select(
-    val: Operand,
-    val_ty: &Type,
-    case_val: Constant,
-    prev: Operand,
-    case_res: Constant,
-    sass: &mut Vec<Type>,
-    dispatch_ty: &Type,
-) -> ([Instruction; 2], Operand) {
-    let dst = SSAVal(sass.len() as _);
-    sass.push(I1_TY.clone());
-    let is_case = Instruction::ICmp {
-        dst,
-        ty: val_ty.clone(),
-        lhs: val,
-        rhs: Operand::Constant(case_val),
-        cmp: crate::ICmp::Eq,
-    };
-    let is_case_dst = dst;
-    let dst = SSAVal(sass.len() as _);
-    sass.push(dispatch_ty.clone());
-    let select = Instruction::Select {
-        dst,
-        cond: Operand::SSA(is_case_dst),
-        ty: dispatch_ty.clone(),
-        then: Operand::Constant(case_res),
-        els: prev,
-        cond_ty: I1_TY.clone(),
-    };
-    ([is_case, select], Operand::SSA(dst))
-}
-fn switch_cases_select(
-    default: Label,
-    mut cases: Vec<(Constant, Label)>,
-    sass: &mut Vec<Type>,
-    label_map: &HashMap<Label, Constant>,
-    val: Operand,
-    val_ty: &Type,
-    dispatch_ty: &Type,
-) -> (Vec<Instruction>, Operand) {
-    cases.sort_by_key(|(c, _)| c.as_i128());
-    let mut instrs = vec![];
-    let mut prev = Operand::Constant(label_map[&default].clone());
-    for (case_val, label) in cases {
-        let case_res = label_map[&label].clone();
-        let (ins, curr) = switch_gen_select(
-            val.clone(),
-            val_ty,
-            case_val,
-            prev,
-            case_res,
-            sass,
-            dispatch_ty,
-        );
-        instrs.extend(ins);
-        prev = curr;
-    }
-    (instrs, prev)
-}
-fn dce(entry: Label, unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
-    let mut reachable = std::collections::HashSet::new();
-    let mut stack = vec![entry];
-    while let Some(label) = stack.pop() {
-        if !reachable.insert(label) {
-            continue;
-        }
-        let Some((_, term)) = unstructured.get(&label) else {
-            continue;
-        };
-        stack.extend(term.sucessors());
-    }
-    unstructured.retain(|label, _| reachable.contains(label));
-}
-
-fn linearize(entry: Label, unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
-    // the idea behind the linearize pass is this: control flow can contain "linear" regions,
-    // where a block has only one, unconditonal, predecesor. In such case, we can copy the body
-    // of that block, append it to the previous block, and terminate it with the terminator of the successor.
-    let mut pred_count: HashMap<Label, usize> = Default::default();
-    // for each bb, add it's sucss to the counter.
-    unstructured
-        .iter()
-        .map(|(_, (_, t))| t.sucessors())
-        .flatten()
-        .for_each(|s| {
-            *pred_count.entry(s).or_default() += 1;
-            assert_ne!(s, entry, "no block may jump to entry!");
-        });
-    // Go trough bbs, finding blocks to linearize.
-    // We need a copy of `unstructured`s labels here,
-    // to be able to iter and mutate it at the same time.
-    let labels: Vec<_> = unstructured.keys().cloned().collect();
-
-    loop {
-        let mut lop = false;
-        for l in &labels {
-            let Some((_, Termiantor::Br(target))) = unstructured.get(l) else {
-                continue;
-            };
-            if pred_count[target] != 1 {
-                continue;
+        'outer: loop {
+            let graph = unstructured_to_digraph(*entry, &*unstructured, *exit);
+            /*
+            Petgraph pre and post dominators?
+            */
+            for (l, (bb, term)) in unstructured.clone() {
+                let Termiantor::BrCond { cond, then, els } = term else {
+                    continue;
+                };
+                // If - all cf that passes trough then must go back to els
+                if graph.post_dominates(graph.ids[&els], graph.ids[&then]) {
+                    if try_reduce_if(&graph, l, then, els, &cond, unstructured, false, ssas) {
+                        continue 'outer;
+                    }
+                }
+                if graph.post_dominates(graph.ids[&then], graph.ids[&els]) {
+                    if try_reduce_if(&graph, l, els, then, &cond, unstructured, true, ssas) {
+                        continue 'outer;
+                    }
+                }
             }
-            // infinite loop(which should be dead and impossiblle...), no linearize.
-            if target == l {
-                continue;
-            }
-            let target = *target;
-            let (s_tgt, t_tgt) = unstructured.remove(&target).unwrap();
-            let src = unstructured.get_mut(l).unwrap();
-            let old = src.0.clone();
-            src.0 = StructureRegion::Seq(vec![old, s_tgt]);
-            src.1 = t_tgt;
-            lop = true;
-        }
-        if !lop {
             break;
         }
     }
 }
+fn try_reduce_if(
+    graph: &Graph,
+    l: Label,
+    then: Label,
+    els: Label,
+    cond: &Operand,
+    unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>,
+    invert_cond: bool,
+    ssa: &mut Vec<Type>,
+) -> bool {
+    // if (condtion) goto then;
+    // else goto els;
+    // then:
+    // do_sth();
+    // els:
+    // === simple ===
+    // if (condtion)do_sth();
+    let then_set = graph.nodes_between_nodes(graph.ids[&then], graph.ids[&els]);
+    if !then_set
+        .iter()
+        .all(|then| graph.dominates(graph.ids[&l], *then))
+    {
+        // Not all blocks in the region dominated by the "if head" - not an if :<
+        return false;
+    }
+    // Branch dominates itself - cheap loop check
+    if then_set.contains(&graph.ids[&l]) {
+        return false;
+    }
+    // Proper loop check
+    let closed = then_set.iter().all(|&n| {
+        graph
+            .graph
+            .neighbors_directed(n, Direction::Incoming)
+            .all(|p| p == graph.ids[&l] || then_set.contains(&p))
+    });
+    if !closed {
+        return false;
+    }
+    let mut inner: HashMap<_, _> = Default::default();
+    for t in then_set {
+        inner.insert(
+            graph.graph[t],
+            unstructured.remove(&graph.graph[t]).unwrap(),
+        );
+    }
+    let inner = StructureRegion::Unstructured {
+        entry: then,
+        unstructured: inner,
+        exit: els,
+    };
+    let new = if invert_cond {
+        let ncond = SSAVal(ssa.len() as _);
+        let flip = Instruction::Binop {
+            dst: ncond,
+            ty: I1_TY.clone(),
+            lhs: cond.clone(),
+            rhs: Operand::Constant(crate::Constant::True),
+            op: crate::Binop::Xor,
+        };
+        let inner = StructureRegion::If {
+            cond: Operand::SSA(ncond),
+            then: Box::new(inner),
+            label: l,
+        };
+        let (old_str, _) = unstructured.remove(&l).unwrap();
+        StructureRegion::Seq(vec![
+            old_str,
+            StructureRegion::OpSeq(InstrList { instrs: vec![flip] }),
+            inner,
+        ])
+    } else {
+        let inner = StructureRegion::If {
+            cond: cond.clone(),
+            then: Box::new(inner),
+            label: l,
+        };
+        let (old_str, _) = unstructured.remove(&l).unwrap();
+        StructureRegion::Seq(vec![old_str, inner])
+    };
+
+    unstructured.insert(l, (new, Termiantor::Br(els)));
+    true
+}
+struct Graph {
+    entry: Label,
+    graph: DiGraph<Label, ()>,
+    ids: HashMap<Label, NodeIndex>,
+    doms: Dominators<NodeIndex>,
+    post_doms: Dominators<NodeIndex>,
+}
+impl Graph {
+    fn dominates(&self, a: NodeIndex, b: NodeIndex) -> bool {
+        self.doms
+            .dominators(b)
+            .into_iter()
+            .flatten()
+            .any(|d| d == a)
+    }
+    fn post_dominates(&self, a: NodeIndex, b: NodeIndex) -> bool {
+        self.post_doms
+            .dominators(b)
+            .into_iter()
+            .flatten()
+            .any(|d| d == a)
+    }
+    fn bad(&self, start: NodeIndex, end: NodeIndex) -> HashSet<NodeIndex> {
+        let doms: HashSet<NodeIndex> = self.doms.dominators(end).into_iter().flatten().collect();
+        let post_doms: HashSet<NodeIndex> = self
+            .post_doms
+            .dominators(start)
+            .into_iter()
+            .flatten()
+            .collect();
+        eprintln!("{doms:?} {post_doms:?}");
+        doms.intersection(&post_doms).copied().collect()
+    }
+    fn nodes_between_nodes(&self, start: NodeIndex, end: NodeIndex) -> HashSet<NodeIndex> {
+        let mut seen = HashSet::new();
+        let mut stack = vec![start];
+        while let Some(n) = stack.pop() {
+            if n == end || !seen.insert(n) {
+                continue;
+            }
+            stack.extend(self.graph.neighbors_directed(n, Direction::Outgoing));
+        }
+        seen
+    }
+}
+fn unstructured_to_digraph(
+    entry: Label,
+    unstructured: &HashMap<Label, (StructureRegion, Termiantor)>,
+    exit: Label,
+) -> Graph {
+    let mut graph = DiGraph::new();
+    let mut ids: HashMap<Label, NodeIndex> = HashMap::with_capacity(unstructured.len() + 1);
+    for label in unstructured.keys() {
+        ids.insert(*label, graph.add_node(*label));
+    }
+    let exit_idx = *ids.entry(exit).or_insert_with(|| graph.add_node(exit));
+    for (label, (_, term)) in unstructured {
+        let from = ids[label];
+        let succ = term.sucessors();
+        // divergent control flow connects to exit!
+        if succ.is_empty() {
+            graph.add_edge(from, exit_idx, ());
+        }
+        for succ in succ {
+            graph.add_edge(from, ids[&succ], ());
+        }
+    }
+    // Handling of infinite loops - they diverge too(in a wierd way).
+    // how do we detect that? Well, in our graph, nodes with no connection to the
+    // exit must naturally be infinite loops.
+    let gclone = graph.clone();
+    let rev = petgraph::visit::Reversed(&gclone);
+    let mut reaches_exit = std::collections::HashSet::new();
+    let mut dfs = petgraph::visit::Dfs::new(&rev, ids[&exit]);
+    while let Some(n) = dfs.next(&rev) {
+        reaches_exit.insert(n);
+    }
+    for node in graph.node_indices().filter(|n| !reaches_exit.contains(n)) {
+        graph.add_edge(node, exit_idx, ());
+    }
+    let doms = petgraph::algo::dominators::simple_fast(&graph, ids[&entry]);
+    let mut rgraph = graph.clone();
+    rgraph.reverse();
+    let post_doms = petgraph::algo::dominators::simple_fast(&rgraph, ids[&exit]);
+    Graph {
+        graph,
+        ids,
+        entry,
+        doms,
+        post_doms,
+    }
+}
 #[cfg(test)]
 fn structurize_random_cfg(u: &mut arbitrary::Unstructured) -> arbitrary::Result<()> {
-    let count = u.arbitrary::<u8>()? as usize + 2;
+    use crate::{
+        BasicBlock, Constant, I1_TY, InstrList, Label, Locals, Operand, SSAVal, Termiantor, Type,
+    };
+    let count = u.arbitrary::<u8>()?.saturating_add(2);
     let mut cases = vec![];
     u.arbitrary_loop(Some(2), Some(count as u32), |u| {
         let res = match u.int_in_range(0..=100)? {
-            0..=50 => vec![u.arbitrary::<u8>()?, u.arbitrary::<u8>()?],
-            51..=75 => vec![u.arbitrary::<u8>()?],
+            0..=50 => vec![
+                u.int_in_range(1..=count - 1)?,
+                u.int_in_range(1..=count - 1)?,
+            ],
+            51..=75 => vec![u.int_in_range(1..=count - 1)?],
             76..=100 => vec![],
             _ => todo!(),
         };
@@ -512,23 +365,94 @@ fn structurize_random_cfg(u: &mut arbitrary::Unstructured) -> arbitrary::Result<
         bbs,
         &mut Locals::empty(),
         &mut args,
-        &Type::ix(NonZeroU8::new(8).unwrap()),
+        &Type::ix(std::num::NonZeroU8::new(8).unwrap()),
     );
+    eprintln!("===============");
+    eprintln!("{body}");
     let _ = body;
     Ok(())
 }
+fn dce(entry: Label, unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
+    let mut reachable = std::collections::HashSet::new();
+    let mut stack = vec![entry];
+    while let Some(label) = stack.pop() {
+        if !reachable.insert(label) {
+            continue;
+        }
+        let Some((_, term)) = unstructured.get(&label) else {
+            continue;
+        };
+        stack.extend(term.sucessors());
+    }
+    unstructured.retain(|label, _| reachable.contains(label));
+}
+fn simplyfy_terms(unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
+    for (_, (_, t)) in unstructured {
+        let Termiantor::BrCond { then, els, .. } = t else {
+            continue;
+        };
+        if then == els {
+            *t = Termiantor::Br(*then);
+        }
+    }
+}
+fn linearize(entry: Label, unstructured: &mut HashMap<Label, (StructureRegion, Termiantor)>) {
+    // the idea behind the linearize pass is this: control flow can contain "linear" regions,
+    // where a block has only one, unconditonal, predecesor. In such case, we can copy the body
+    // of that block, append it to the previous block, and terminate it with the terminator of the successor.
+    let mut pred_count: HashMap<Label, usize> = Default::default();
+    // for each bb, add it's sucss to the counter.
+    unstructured
+        .iter()
+        .map(|(_, (_, t))| t.sucessors())
+        .flatten()
+        .for_each(|s| {
+            *pred_count.entry(s).or_default() += 1;
+            assert_ne!(s, entry, "no block may jump to entry!");
+        });
+    // Go trough bbs, finding blocks to linearize.
+    // We need a copy of `unstructured`s labels here,
+    // to be able to iter and mutate it at the same time.
+    let labels: Vec<_> = unstructured.keys().cloned().collect();
+
+    loop {
+        let mut lop = false;
+        for l in &labels {
+            let Some((_, Termiantor::Br(target))) = unstructured.get(l) else {
+                continue;
+            };
+            if pred_count[target] != 1 {
+                continue;
+            }
+            // infinite loop(which should be dead and impossiblle...), no linearize.
+            if target == l {
+                continue;
+            }
+            let target = *target;
+            let (s_tgt, t_tgt) = unstructured.remove(&target).unwrap();
+            let src = unstructured.get_mut(l).unwrap();
+            let old = src.0.clone();
+            src.0 = StructureRegion::Seq(vec![old, s_tgt]);
+            src.1 = t_tgt;
+            lop = true;
+        }
+        if !lop {
+            break;
+        }
+    }
+}
+
 #[test]
 fn random_cfg() {
     FALLBACK_COUNTER.with(|c| c.store(0, std::sync::atomic::Ordering::Relaxed));
     let iters = 1024;
-    crate::unstructured(structurize_random_cfg, iters, 4);
+    crate::unstructured(structurize_random_cfg, iters, 20);
     let mut counter = 0;
     FALLBACK_COUNTER.with(|c| counter = c.load(std::sync::atomic::Ordering::Relaxed));
     eprintln!(
         "fallback needed {}% of the time. {counter}",
         (counter as f64 / iters as f64) * 100.0
     );
-    //panic!()
 }
 #[cfg(test)]
 thread_local! {

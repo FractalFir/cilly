@@ -1,5 +1,3 @@
-use std::num::NonZeroU8;
-
 use arbitrary::Arbitrary;
 
 use crate::{

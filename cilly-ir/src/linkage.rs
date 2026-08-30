@@ -1,20 +1,21 @@
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy)]
 pub enum Linkage {
-    #[qparse("external")]
+    #[qparse("external ")]
     External,
-    #[qparse("internal")]
+    #[qparse("internal ")]
     Internal,
-    #[qparse("private")]
+    #[qparse("private ")]
     Private,
-    #[qparse("weak")]
+    #[qparse("weak ")]
     Weak,
-    #[qparse("linkonce")]
+    #[qparse("linkonce ")]
     LinkOnce,
-    #[qparse("common")]
+    #[qparse("common ")]
     Common,
-    #[qparse("appending")]
+    #[qparse("appending ")]
     Appending,
-    #[qparse("extern_weak")]
+    #[qparse("extern_weak ")]
     ExternWeak,
+    
 }
