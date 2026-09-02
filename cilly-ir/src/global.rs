@@ -10,8 +10,23 @@ use nom::{
     sequence::delimited,
 };
 
-use crate::{GlobalIdent, Linkage, ModuleBuilderError};
+use crate::{
+    GlobalIdent,
+    Linkage::{self, External},
+    ModuleBuilderError,
+};
 
+/// This is a stupid fucking hack for LLVM being kind of STUPID here
+/// and requiring the external linkage to be omitted for defintions,  
+/// but not for declarations(w h y ???)
+#[qparse_macros::qparse("")]
+#[derive(Clone, Copy)]
+pub(crate) enum GlobalDeclLinkage {
+    #[qparse("external ")]
+    External,
+    #[qparse("extern_weak ")]
+    ExternWeak,
+}
 #[qparse_macros::qparse("")]
 #[derive(Clone, Copy)]
 pub(crate) enum GlobalKind {
@@ -40,18 +55,42 @@ impl Section {
         Self(None)
     }
 }
-#[qparse_macros::qparse(
-    "{name} = {linkage}{thread_local:present(thread_local )}{kind} {initializer},{link_section} align {align}"
-)]
+#[qparse_macros::qparse("")]
 #[derive(Clone)]
-pub(crate) struct Global {
-    pub(crate) name: GlobalIdent,
-    pub(crate) linkage: Linkage,
-    pub(crate) kind: GlobalKind,
-    pub(crate) initializer: ConstInit,
-    pub(crate) align: NonZeroU32,
-    pub(crate) thread_local: bool,
-    pub(crate) link_section: Section,
+pub(crate) enum Global {
+    #[qparse(
+        "{name} = {linkage}{thread_local:present(thread_local )}{kind} {initializer},{link_section} align {align}"
+    )]
+    Def {
+        name: GlobalIdent,
+        linkage: Linkage,
+        kind: GlobalKind,
+        initializer: ConstInit,
+        align: NonZeroU32,
+        thread_local: bool,
+        link_section: Section,
+    },
+    #[qparse(
+        "{name} = {linkage}{thread_local:present(thread_local )}{kind} [0 x i8], {link_section} align {align}"
+    )]
+    Decl {
+        linkage: GlobalDeclLinkage,
+        name: GlobalIdent,
+        kind: GlobalKind,
+        align: NonZeroU32,
+        thread_local: bool,
+        link_section: Section,
+    },
+}
+impl Global {
+    pub(crate) fn is_def(&self) -> bool {
+        matches!(self, Self::Def { .. })
+    }
+    pub(crate) fn name(&self) -> &GlobalIdent {
+        match self {
+            Global::Def { name, .. } | Global::Decl { name, .. } => name,
+        }
+    }
 }
 #[qparse_macros::qparse("")]
 #[derive(Debug, Clone)]
@@ -194,7 +233,7 @@ impl ConstInit {
 #[test]
 fn text_global() {
     assert_eq!(
-        &Global {
+        &Global::Def {
             name: GlobalIdent::new("hello_func🦆").unwrap(),
             linkage: Linkage::External,
             kind: GlobalKind::Constant,
@@ -211,7 +250,7 @@ fn text_global() {
 #[test]
 fn ptr_global() {
     assert_eq!(
-        &Global {
+        &Global::Def {
             name: GlobalIdent::new("DUCKS_PTR🦆").unwrap(),
             linkage: Linkage::Internal,
             kind: GlobalKind::Constant,
@@ -232,7 +271,7 @@ fn ptr_global() {
 #[test]
 fn ptr_global_and_const() {
     assert_eq!(
-        &Global {
+        &Global::Def {
             name: GlobalIdent::new("🦆DUCKS_PTR🦆").unwrap(),
             linkage: Linkage::Internal,
             kind: GlobalKind::Constant,
@@ -253,16 +292,15 @@ fn ptr_global_and_const() {
 #[test]
 fn extern_global() {
     assert_eq!(
-        &Global {
+        &Global::Decl {
             name: GlobalIdent::new("EXTERN_DUCKS_PTR🦆").unwrap(),
-            linkage: Linkage::External,
             kind: GlobalKind::Constant,
-            initializer: ConstInit::new(vec![], vec![], 0).unwrap(),
             align: NonZeroU32::new(8).unwrap(),
             thread_local: false,
             link_section: Section::empty(),
+            linkage: GlobalDeclLinkage::External,
         }
         .to_string(),
-        "@\"EXTERN_DUCKS_PTR\\F0\\9F\\A6\\86\" = external constant {}, align 8"
+        "@\"EXTERN_DUCKS_PTR\\F0\\9F\\A6\\86\" = constant {}, align 8"
     )
 }

@@ -7,8 +7,8 @@ use std::{
 use tempfile::NamedTempFile;
 
 use crate::{
-    AttrAndTy, ConstInit, FunctionBuilder, GlobalIdent, InputArgs, Linkage, Locals, Section,
-    SourceLocation, TyAndAttr, func::Fnc, global::Global,
+    AttrAndTy, ConstInit, FunctionBuilder, GlobalDeclLinkage, GlobalIdent, InputArgs, Linkage,
+    Locals, Section, SourceLocation, TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default, Clone)]
 pub struct Module {
@@ -27,18 +27,21 @@ impl std::fmt::Display for Module {
     }
 }
 impl Module {
-    pub fn add_global(
+    pub fn decl_global(
         &mut self,
         name: GlobalIdent,
-        linkage: Linkage,
+        is_weak: bool,
         is_const: bool,
         align: NonZeroU32,
     ) -> GlobalRef {
         let idx = self.globals.len();
-        self.globals.push(Global {
+        self.globals.push(Global::Decl {
             name,
-            linkage,
-            initializer: ConstInit::new(vec![], vec![], 0).unwrap(),
+            linkage: if is_weak {
+                crate::GlobalDeclLinkage::ExternWeak
+            } else {
+                crate::GlobalDeclLinkage::External
+            },
             kind: if is_const {
                 crate::GlobalKind::Constant
             } else {
@@ -60,7 +63,13 @@ impl Module {
         global: GlobalRef,
         thread_local: bool,
     ) -> Result<(), ModuleBuilderError> {
-        self.get_global_mut(global)?.thread_local = thread_local;
+        let global = self.get_global_mut(global)?;
+        let tls = thread_local;
+        match global {
+            Global::Def { thread_local, .. } | Global::Decl { thread_local, .. } => {
+                *thread_local = tls
+            }
+        };
         Ok(())
     }
     pub fn set_global_link_section(
@@ -68,12 +77,19 @@ impl Module {
         global: GlobalRef,
         link_section: &str,
     ) -> Result<(), ModuleBuilderError> {
-        self.get_global_mut(global)?.link_section = Section(Some(link_section.to_string()));
+        let global = self.get_global_mut(global)?;
+        let section = Section(Some(link_section.to_string()));
+        match global {
+            Global::Def { link_section, .. } | Global::Decl { link_section, .. } => {
+                *link_section = section
+            }
+        };
         Ok(())
     }
-    pub fn set_global_init(
+    pub fn global_def(
         &mut self,
         global: GlobalRef,
+        linkage: Linkage,
         bytes: Vec<u8>,
         refs: Vec<(u32, SymbolRef)>,
         ptr_size: u32,
@@ -84,13 +100,50 @@ impl Module {
                 (
                     idx,
                     match r {
-                        SymbolRef::GlobalRef(global_ref) => self.globals[global_ref.0].name.clone(),
+                        SymbolRef::GlobalRef(global_ref) => {
+                            self.globals[global_ref.0].name().clone()
+                        }
                         SymbolRef::FuncRef(func_ref) => self.functions[func_ref.0].name().clone(),
                     },
                 )
             })
             .collect();
-        self.get_global_mut(global)?.initializer = ConstInit::new(bytes, refs, ptr_size)?;
+        let initializer = ConstInit::new(bytes, refs, ptr_size)?;
+        let global = self.get_global_mut(global)?;
+        *global = match global.clone() {
+            Global::Decl {
+                name,
+                kind,
+                align,
+                thread_local,
+                link_section,
+                ..
+            } => Global::Def {
+                name,
+                linkage,
+                kind,
+                initializer,
+                align,
+                thread_local,
+                link_section,
+            },
+            Global::Def {
+                name,
+                kind,
+                align,
+                thread_local,
+                link_section,
+                ..
+            } => Global::Def {
+                name,
+                linkage,
+                kind,
+                initializer,
+                align,
+                thread_local,
+                link_section,
+            },
+        };
         Ok(())
     }
     pub fn declare(
@@ -167,57 +220,113 @@ impl Module {
         for f in self.functions.iter_mut() {
             if fn_filter(f) {
                 functions.push((*f).clone());
-                match f {
-                    Fnc::Decl { .. } => (),
-                    Fnc::Def {
-                        src_loc,
-                        linkage,
-                        output,
-                        name,
-                        inputs,
-                        ..
-                    } => {
-                        *f = Fnc::Decl {
-                            src_loc: src_loc.clone(),
-                            linkage: linkage.clone(),
-                            output: output.clone(),
-                            name: name.clone(),
-                            inputs: inputs.clone(),
-                        };
-                    }
-                }
+                let Fnc::Def {
+                    src_loc,
+                    linkage,
+                    output,
+                    name,
+                    inputs,
+                    ..
+                } = f
+                else {
+                    continue;
+                };
+                *f = Fnc::Decl {
+                    src_loc: src_loc.clone(),
+                    linkage: if matches!(linkage, Linkage::ExternWeak) {
+                        *linkage
+                    } else {
+                        Linkage::External
+                    },
+                    output: output.clone(),
+                    name: name.clone(),
+                    inputs: inputs.clone(),
+                };
             } else {
-                match f {
-                    Fnc::Decl { .. } => (),
-                    Fnc::Def {
-                        src_loc,
-                        linkage,
-                        output,
-                        name,
-                        inputs,
-                        ..
-                    } => {
-                        functions.push(Fnc::Decl {
-                            src_loc: src_loc.clone(),
-                            linkage: linkage.clone(),
-                            output: output.clone(),
-                            name: name.clone(),
-                            inputs: inputs.clone(),
-                        });
-                    }
-                }
+                let Fnc::Def {
+                    src_loc,
+                    linkage,
+                    output,
+                    name,
+                    inputs,
+                    ..
+                } = f
+                else {
+                    functions.push(f.clone());
+                    continue;
+                };
+                functions.push(Fnc::Decl {
+                    src_loc: src_loc.clone(),
+                    linkage: if matches!(linkage, Linkage::ExternWeak) {
+                        *linkage
+                    } else {
+                        Linkage::External
+                    },
+                    output: output.clone(),
+                    name: name.clone(),
+                    inputs: inputs.clone(),
+                });
             }
         }
         let mut globals = vec![];
         for global in self.globals.iter_mut() {
             if gl_filter(global) {
                 globals.push((*global).clone());
-                // Empty
-                global.initializer = ConstInit::new(vec![], vec![], 8).unwrap();
+                let Global::Def {
+                    name,
+
+                    kind,
+
+                    align,
+                    thread_local,
+                    link_section,
+                    linkage,
+                    ..
+                } = global.clone()
+                else {
+                    continue;
+                };
+                *global = Global::Decl {
+                    name,
+                    kind,
+                    align,
+                    thread_local,
+                    link_section,
+                    linkage: if matches!(linkage, Linkage::ExternWeak) {
+                        GlobalDeclLinkage::ExternWeak
+                    } else {
+                        GlobalDeclLinkage::External
+                    },
+                };
             } else {
-                let mut global = (*global).clone();
-                global.initializer = ConstInit::new(vec![], vec![], 8).unwrap();
-                globals.push(global);
+                let global = (*global).clone();
+                let Global::Def {
+                    name,
+
+                    kind,
+
+                    align,
+                    thread_local,
+                    link_section,
+                    linkage,
+                    ..
+                } = global
+                else {
+                    globals.push(global);
+                    continue;
+                };
+                globals.push(Global::Decl {
+                    name,
+                    kind,
+                    align,
+                    thread_local,
+                    link_section,
+                    linkage: if matches!(linkage, Linkage::ExternWeak) {
+                        GlobalDeclLinkage::ExternWeak
+                    } else {
+                        GlobalDeclLinkage::External
+                    },
+                });
             }
         }
         Self { globals, functions }
@@ -233,9 +342,9 @@ impl Module {
                 }
             },
             |g| {
-                if g.initializer.is_present(){
+                if g.is_def() {
                     cnt.fetch_add(1, Ordering::Release) % 2 == 0
-                }else{
+                } else {
                     false
                 }
             },
@@ -277,9 +386,9 @@ impl Module {
                 Ok(ok) => objects.push(ok),
                 Err(err) => {
                     let (lhs, rhs) = task.half_split();
-                    if lhs.symdefcount() == 0 || rhs.symdefcount() == 0{
+                    if lhs.symdefcount() == 0 || rhs.symdefcount() == 0 {
                         errors.push(err);
-                    }  else {
+                    } else {
                         tasklist.push(lhs);
                         tasklist.push(rhs);
                     }
@@ -291,11 +400,7 @@ impl Module {
     /// Global / function count
     pub fn symdefcount(&self) -> usize {
         self.functions.iter().filter(|f| f.is_def()).count()
-            + self
-                .globals
-                .iter()
-                .filter(|g| g.initializer.is_present())
-                .count()
+            + self.globals.iter().filter(|g| g.is_def()).count()
     }
 }
 

@@ -1,0 +1,13 @@
+define i$WIDE @cilly_wide_emu_iadd_i$WIDE (i$WIDE %v0, i$WIDE %v1){
+    %v2 = bitcast i$WIDE %v0 to <2 x i$NARROW> ; input to the 2 leaves
+    %v3 = bitcast i$WIDE %v1 to <2 x i$NARROW> ; input to the 2 leaves
+    %v4 = extractelement <2 x i$NARROW> %v2, i32 0 ; extract the low / high halves
+    %v5 = extractelement <2 x i$NARROW> %v3, i32 0
+    %v6 = extractelement <2 x i$NARROW> %v2, i32 1
+    %v7 = extractelement <2 x i$NARROW> %v3, i32 1
+    %v8 = select i1 $IS_LE, i$NARROW %v4, i$NARROW %v6 ; handle endian-ess
+    %v9 = select i1 $IS_BE, i$NARROW %v6, i$NARROW %v4
+    %v10 = select i1 $IS_LE, i$NARROW %v5, i$NARROW %v7
+    %v11 = select i1 $IS_BE, i$NARROW %v7, i$NARROW %v5
+    ret i$WIDE %v0
+}

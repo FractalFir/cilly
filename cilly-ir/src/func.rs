@@ -11,7 +11,7 @@ use crate::{Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, lo
 
 /// Function Declaration or Definition.
 #[qparse_macros::qparse("")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Fnc {
     #[qparse("{src_loc}declare {linkage}{output} {name} ({inputs})")]
     Decl {
@@ -46,7 +46,7 @@ impl Fnc {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
     pub(crate) va_args: bool,

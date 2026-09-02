@@ -1,8 +1,6 @@
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Linkage {
-    #[qparse("external ")]
-    External,
     #[qparse("internal ")]
     Internal,
     #[qparse("private ")]
@@ -17,5 +15,9 @@ pub enum Linkage {
     Appending,
     #[qparse("extern_weak ")]
     ExternWeak,
-    
+    // Omited linkage in LLVM is external. This is stupid as shit,
+    // but we need to explictly omit the linkage, otherwise extern
+    // globals get sad. Why, LLVM, whyyyyyy... T T
+    #[qparse("")]
+    External,
 }

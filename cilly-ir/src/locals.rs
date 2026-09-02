@@ -4,19 +4,19 @@ use nom::{Parser, character::complete::multispace0, multi::many0};
 
 use crate::{Local, SSAVal, Type, comment};
 #[qparse_macros::qparse("{ssa_id} = alloca i8, i32 {size}, align {align}")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct AllocA {
     pub(crate) ssa_id: SSAVal,
     pub(crate) size: NonZeroU32,
     pub(crate) align: NonZeroU32,
 }
 #[qparse_macros::qparse("{local} = alloca {ty}")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct LocalDef {
     pub(crate) local: Local,
     pub(crate) ty: Type,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Locals {
     /// alloca - stack allocation, whose address can be taken.
     pub(crate) allocas: Vec<AllocA>,
