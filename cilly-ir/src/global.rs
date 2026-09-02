@@ -46,7 +46,10 @@ impl std::fmt::Display for Section {
     }
 }
 impl qparse::Parseable<qparse::Display> for Section {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         todo!()
     }
 }
@@ -120,7 +123,10 @@ impl std::fmt::Display for ByteRun {
     }
 }
 impl qparse::Parseable<qparse::Display> for ByteRun {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         use nom::Parser;
         map(
             delimited(
@@ -188,7 +194,10 @@ impl std::fmt::Display for ConstInit {
     }
 }
 impl qparse::Parseable<qparse::Display> for ConstInit {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         alt((value(Self { fragments: vec![] }, tag("{}")),)).parse(input)
     }
 }

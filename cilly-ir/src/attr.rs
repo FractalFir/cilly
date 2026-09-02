@@ -44,7 +44,10 @@ impl std::fmt::Display for AttrList {
     }
 }
 impl qparse::Parseable<qparse::Display> for AttrList {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         use nom::Parser;
         many0(Attr::parse).map(|attrs| Self { attrs }).parse(input)
     }

@@ -5,7 +5,7 @@ use crate::{
     Type,
 };
 
-#[qparse_macros::qparse("%v{0}")]
+#[qparse_macros::qparse("%v{0:cut()}")]
 #[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
 pub struct SSAVal(pub(crate) u32);
 #[qparse_macros::qparse("")]

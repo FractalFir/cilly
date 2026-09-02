@@ -25,9 +25,9 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "chacha20"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -40,6 +40,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "nom",
+ "nom-language",
  "petgraph",
  "qparse",
  "qparse_macros",
@@ -50,9 +51,9 @@ dependencies = [
 
 [[package]]
 name = "cpufeatures"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
+checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
 dependencies = [
  "libc",
 ]
@@ -131,9 +132,9 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "indexmap"
-version = "2.14.0"
+version = "2.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
+checksum = "07aa2048142242915a31d35844fb311e0e53fcca590c3a0a40dcf1b841fa09eb"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
@@ -167,6 +168,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom-language"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de2bc5b451bfedaef92c90b8939a8fff5770bdcc1fafd6239d086aab8fa6b29"
+dependencies = [
+ "nom",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -196,7 +206,7 @@ dependencies = [
 [[package]]
 name = "qparse"
 version = "0.1.0"
-source = "git+https://github.com/FractalFir/qparse.git#712e1b54d4bb4be2693fa627c75558ae442333f3"
+source = "git+https://github.com/FractalFir/qparse.git#4b369771456e9d9910292f3c500fa86c66a2b10f"
 dependencies = [
  "nom",
 ]
@@ -204,7 +214,7 @@ dependencies = [
 [[package]]
 name = "qparse_macros"
 version = "0.1.0"
-source = "git+https://github.com/FractalFir/qparse.git#712e1b54d4bb4be2693fa627c75558ae442333f3"
+source = "git+https://github.com/FractalFir/qparse.git#4b369771456e9d9910292f3c500fa86c66a2b10f"
 dependencies = [
  "nom",
  "proc-macro2",

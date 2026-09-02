@@ -1,6 +1,7 @@
 use std::num::{NonZeroU8, NonZeroU32};
 
 use arbitrary::Arbitrary;
+use nom::{bytes::complete::tag, combinator::map, multi::separated_list0, sequence::delimited};
 #[qparse_macros::qparse("")]
 #[derive(Clone, Arbitrary, Debug, PartialEq)]
 pub enum FloatTy {
@@ -76,8 +77,23 @@ impl std::fmt::Display for StructTy {
     }
 }
 impl qparse::Parseable<qparse::Display> for StructTy {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
-        todo!()
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
+        use nom::Parser;
+        map(
+            delimited(
+                tag("{"),
+                separated_list0(
+                    tag(", "),
+                    <Type as qparse::Parseable<qparse::Display>>::parse,
+                ),
+                tag("}"),
+            ),
+            |elems| StructTy { elems },
+        )
+        .parse(input)
     }
 }
 

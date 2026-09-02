@@ -50,7 +50,10 @@ impl std::fmt::Display for Locals {
     }
 }
 impl qparse::Parseable<qparse::Display> for Locals {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         (
             many0((multispace0, AllocA::parse, comment).map(|(_, a, __)| a)),
             many0((multispace0, LocalDef::parse, comment).map(|(_, l, __)| l)),

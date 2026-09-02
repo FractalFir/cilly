@@ -59,7 +59,10 @@ impl std::fmt::Display for SourceLocation {
     }
 }
 impl qparse::Parseable<qparse::Display> for SourceLocation {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         nom::branch::alt((
             SourceLocationInner::parse.map(|s| Self { opt: Some(s) }),
             success(SourceLocation { opt: None }),
@@ -78,7 +81,10 @@ pub(crate) struct SourceLocationInner {
     col: u32,
 }
 
-pub(crate) fn comment(input: &str) -> IResult<&str, ()> {
+pub(crate) fn comment<'a, E>(input: &'a str) -> nom::IResult<&'a str, (), E>
+where
+    E: qparse::QParseError<'a>,
+{
     use nom::Parser;
     alt((
         (multispace0, tag(";"), take_until("\n"), tag("\n")).map(|_| ()),

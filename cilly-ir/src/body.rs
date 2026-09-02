@@ -32,7 +32,10 @@ impl std::fmt::Display for InstrList {
     }
 }
 impl qparse::Parseable<qparse::Display> for InstrList {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         many1((multispace0, Instruction::parse, comment).map(|(_, i, _)| i))
             .map(|instrs| Self { instrs })
             .parse(input)
@@ -62,7 +65,10 @@ impl std::fmt::Display for Body {
     }
 }
 impl qparse::Parseable<qparse::Display> for Body {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         many1(
             (
                 multispace0,
@@ -191,7 +197,10 @@ impl std::fmt::Display for Switch {
     }
 }
 impl qparse::Parseable<qparse::Display> for Switch {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         nom::bytes::complete::tag("UNPARSABLE FOR NOW todo!() I AM LAZYYYY")
             .map(|_| todo!())
             .parse(input)
@@ -202,21 +211,21 @@ fn body_fmt() {
     use qparse::Parseable;
     println!(
         "{:?}",
-        <Instruction as qparse::Parseable<qparse::Display>>::parse("")
+        <Instruction as qparse::Parseable<qparse::Display>>::simple_parse("")
     );
-    println!("{:?}", comment(""));
+
     println!(
         "{:?}",
-        <InstrList as qparse::Parseable<qparse::Display>>::parse("")
+        <InstrList as qparse::Parseable<qparse::Display>>::simple_parse("")
     );
     crate::arbitrary::<Body>(
         |b| {
             let mut body_str = b.to_string();
             eprintln!("body_str:{body_str}");
-            if let Err(err) = Body::parse(&body_str) {
+            if let Err(err) = Body::simple_parse(&body_str) {
                 panic!("{body_str} {err:?}");
             }
-            let mut reparsed = Body::parse(&body_str).unwrap().1.to_string();
+            let mut reparsed = Body::simple_parse(&body_str).unwrap().1.to_string();
 
             if reparsed != *body_str {
                 while reparsed.chars().last() == body_str.chars().last() && !body_str.is_empty() {

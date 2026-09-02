@@ -13,7 +13,7 @@ use crate::{Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, lo
 #[qparse_macros::qparse("")]
 #[derive(Clone, Debug)]
 pub(crate) enum Fnc {
-    #[qparse("{src_loc}declare {linkage}{output} {name} ({inputs})")]
+    #[qparse("{src_loc}declare {linkage}{output} {name}({inputs})")]
     Decl {
         src_loc: SourceLocation,
         linkage: Linkage,
@@ -22,7 +22,7 @@ pub(crate) enum Fnc {
         inputs: InputArgs,
     },
     #[qparse(
-        "{src_loc}define {linkage}{output} {name} ({inputs}){{
+        "{src_loc}define {linkage}{output} {name}({inputs}){{
 {locals}{body}}}"
     )]
     Def {
@@ -95,7 +95,10 @@ impl std::fmt::Display for InputArgs {
 }
 
 impl qparse::Parseable<qparse::Display> for InputArgs {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         use nom::Parser;
         separated_list0(
             tag(","),
@@ -142,11 +145,11 @@ fn extern_global() {
         .to_string(),
         "declare external zext i8 @HELLO (i8 sext %v0)"
     );
-    <Fnc as qparse::Parseable<qparse::Display>>::parse(
+    <Fnc as qparse::Parseable<qparse::Display>>::simple_parse(
         "declare external zext i8 @HELLO (i8 sext %v0)",
     )
     .unwrap();
-    <Fnc as qparse::Parseable<qparse::Display>>::parse(
+    <Fnc as qparse::Parseable<qparse::Display>>::simple_parse(
         "define external zext i8 @HELLO (i8 sext %v0){ 
     %v5 = alloca i8, i32 8, align 8 ; this is an alloca :3
     %l6 = alloca i127
@@ -154,7 +157,7 @@ fn extern_global() {
 }",
     )
     .unwrap();
-    <Fnc as qparse::Parseable<qparse::Display>>::parse(
+    <Fnc as qparse::Parseable<qparse::Display>>::simple_parse(
         "; source @a:10:20 declare external zext i8 @HELLO (i8 sext %v0)",
     )
     .unwrap();

@@ -19,7 +19,10 @@ impl std::fmt::Display for CallArgs {
     }
 }
 impl qparse::Parseable<qparse::Display> for CallArgs {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         todo!()
     }
 }
@@ -197,7 +200,7 @@ pub enum AtomOrdering {
 #[qparse_macros::qparse("")]
 #[derive(Clone, Debug, Arbitrary)]
 pub(crate) enum Instruction {
-    #[qparse("{dst} = icmp {cmp} {ty} {lhs}, {rhs}")]
+    #[qparse("{dst} = icmp {cmp:cut()} {ty:cut()} {lhs:cut()}, {rhs:cut()}")]
     ICmp {
         dst: SSAVal,
         ty: Type,
@@ -205,7 +208,7 @@ pub(crate) enum Instruction {
         rhs: Operand,
         cmp: ICmp,
     },
-    #[qparse("{dst} = fcmp {cmp} {ty} {lhs}, {rhs}")]
+    #[qparse("{dst} = fcmp {cmp:cut()} {ty:cut()} {lhs:cut()}, {rhs:cut()}")]
     FCmp {
         dst: SSAVal,
         ty: Type,
@@ -213,7 +216,7 @@ pub(crate) enum Instruction {
         rhs: Operand,
         cmp: FCmp,
     },
-    #[qparse("{dst} = {op} {ty} {lhs}, {rhs}")]
+    #[qparse("{dst} = {op} {ty:cut()} {lhs:cut()}, {rhs:cut()}")]
     Binop {
         dst: SSAVal,
         ty: Type,
@@ -221,9 +224,9 @@ pub(crate) enum Instruction {
         rhs: Operand,
         op: Binop,
     },
-    #[qparse("{dst} = fneg {ty} {val}")]
+    #[qparse("{dst} = fneg {ty:cut()} {val:cut()}")]
     Fneg { dst: SSAVal, ty: Type, val: Operand },
-    #[qparse("{dst} = {op} {src_ty} {val} to {dst_ty}")]
+    #[qparse("{dst} = {op} {src_ty:cut()} {val:cut()} to {dst_ty:cut()}")]
     Cast {
         dst: SSAVal,
         op: CastOp,
@@ -232,7 +235,7 @@ pub(crate) enum Instruction {
         dst_ty: Type,
     },
     #[qparse(
-        "call void @llvm.memcpy.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+        "call void @llvm.memcpy.p0.p0.{len_ty:cut()}(ptr {dest:cut()}, ptr {src:cut()}, {len_ty:cut()} {len:cut()}, i1 {volatile:cut()})"
     )]
     MemCpy {
         dest: Operand,
@@ -242,7 +245,7 @@ pub(crate) enum Instruction {
         volatile: bool,
     },
     #[qparse(
-        "call void @llvm.memmove.p0.p0.{len_ty}(ptr {dest}, ptr {src}, {len_ty} {len}, i1 {volatile})"
+        "call void @llvm.memmove.p0.p0.{len_ty:cut()}(ptr {dest:cut()}, ptr {src:cut()}, {len_ty:cut()} {len:cut()}, i1 {volatile:cut()})"
     )]
     MemMove {
         dest: Operand,
@@ -252,7 +255,7 @@ pub(crate) enum Instruction {
         volatile: bool,
     },
     #[qparse(
-        "call void @llvm.memset.p0.{len_ty}(ptr {dest}, i8 {val}, {len_ty} {len}, i1 {volatile})"
+        "call void @llvm.memset.p0.{len_ty:cut()}(ptr {dest:cut()}, i8 {val:cut()}, {len_ty:cut()} {len:cut()}, i1 {volatile:cut()})"
     )]
     MemSet {
         dest: Operand,
@@ -263,12 +266,12 @@ pub(crate) enum Instruction {
     },
     #[qparse("{dst} = call {intrinsic}")]
     CallIntrinsic { dst: SSAVal, intrinsic: Intrinsic },
-    #[qparse("call void {callee}({call_args})")]
+    #[qparse("call void {callee:cut()}({call_args})")]
     VoidCall {
         callee: Operand,
         call_args: CallArgs,
     },
-    #[qparse("{dst} = call {output} {callee}({call_args})")]
+    #[qparse("{dst} = call {output} {callee:cut()}({call_args})")]
     Call {
         dst: SSAVal,
         output: AttrAndTy,
@@ -277,13 +280,15 @@ pub(crate) enum Instruction {
     },
     #[qparse("{dst} = load {ty}, ptr {local}")]
     LoadLocal { dst: SSAVal, local: Local, ty: Type },
-    #[qparse("store {ty} {val}, ptr {local}")]
+    #[qparse("store {ty} {val:cut()}, ptr {local}")]
     StoreLocal {
         local: Local,
         ty: Type,
         val: Operand,
     },
-    #[qparse("{dst} = select {cond_ty} {cond}, {ty} {then}, {ty} {els}")]
+    #[qparse(
+        "{dst} = select {cond_ty:cut()} {cond:cut()}, {ty:cut()} {then:cut()}, {ty:cut()} {els:cut()}"
+    )]
     Select {
         dst: SSAVal,
         cond: Operand,
@@ -292,7 +297,7 @@ pub(crate) enum Instruction {
         els: Operand,
         cond_ty: Type,
     },
-    #[qparse("{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr}, {off_ty} {off}")]
+    #[qparse("{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr:cut()}, {off_ty:cut()} {off:cut()}")]
     PtrOffset {
         dst: SSAVal,
         ptr: Operand,
@@ -300,7 +305,7 @@ pub(crate) enum Instruction {
         off: Operand,
         inbounds: bool,
     },
-    #[qparse("{dst} = load{volatile:present( volatile)} {ty}, ptr {ptr}, align {align}")]
+    #[qparse("{dst} = load{volatile:present( volatile)} {ty}, ptr {ptr:cut()}, align {align:cut()}")]
     Load {
         dst: SSAVal,
         ptr: Operand,
@@ -308,7 +313,7 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         volatile: bool,
     },
-    #[qparse("{dst} = load atomic {ty}, ptr {ptr} {ordering}, align {align}")]
+    #[qparse("{dst} = load atomic {ty:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}")]
     LoadAtomic {
         dst: SSAVal,
         ptr: Operand,
@@ -316,7 +321,7 @@ pub(crate) enum Instruction {
         align: NonZeroU32,
         ordering: AtomOrdering,
     },
-    #[qparse("store{volatile:present( volatile)} {ty} {val}, ptr {ptr}, align {align}")]
+    #[qparse("store{volatile:present( volatile)} {ty} {val:cut()}, ptr {ptr}, align {align:cut()}")]
     Store {
         ptr: Operand,
         ty: Type,
@@ -325,7 +330,7 @@ pub(crate) enum Instruction {
         volatile: bool,
     },
 
-    #[qparse("store atomic {ty} {val}, ptr {ptr} {ordering}, align {align}")]
+    #[qparse("store atomic {ty:cut()} {val:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}")]
     StoreAtomic {
         ptr: Operand,
         ty: Type,
@@ -334,7 +339,7 @@ pub(crate) enum Instruction {
         ordering: AtomOrdering,
     },
     #[qparse(
-        "{dst} = cmpxchg {weak:present(weak )}ptr {ptr}, {ty} {expected}, {ty} {desired} {success} {failure}"
+        "{dst} = cmpxchg {weak:present(weak )}ptr {ptr:cut()}, {ty:cut()} {expected:cut()}, {ty:cut()} {desired:cut()} {success:cut()} {failure:cut()}"
     )]
     AtomicCmpxchg {
         ty: Type,
@@ -346,9 +351,9 @@ pub(crate) enum Instruction {
         weak: bool,
         dst: SSAVal,
     },
-    #[qparse("fence {ordering}")]
+    #[qparse("fence {ordering:cut()}")]
     Fence { ordering: AtomOrdering },
-    #[qparse("{dst} = atomicrmw {op} ptr {ptr}, {ty} {val} {ordering}, align {align}")]
+    #[qparse("{dst} = atomicrmw {op:cut()} ptr {ptr:cut()}, {ty:cut()} {val:cut()} {ordering:cut()}, align {align:cut()}")]
     AtomicRmw {
         dst: SSAVal,
         op: AtomicRmwOp,
@@ -358,14 +363,14 @@ pub(crate) enum Instruction {
         ordering: AtomOrdering,
         align: NonZeroU32,
     },
-    #[qparse("{dst} = extractvalue {aggregate_ty} {aggregate}, {index}")]
+    #[qparse("{dst} = extractvalue {aggregate_ty:cut()} {aggregate:cut()}, {index:cut()}")]
     ExtractValue {
         dst: SSAVal,
         aggregate_ty: Type,
         aggregate: Operand,
         index: u64,
     },
-    #[qparse("{dst} = insertvalue {aggregate_ty} {aggregate}, {value_ty} {element}, {index}")]
+    #[qparse("{dst} = insertvalue {aggregate_ty:cut()} {aggregate:cut()}, {value_ty:cut()} {element:cut()}, {index:cut()}")]
     InsertValue {
         dst: SSAVal,
         aggregate_ty: Type,
@@ -374,14 +379,14 @@ pub(crate) enum Instruction {
         element: Operand,
         index: u64,
     },
-    #[qparse("{dst} = extractelement {vector_ty} {vector}, i32 {index}")]
+    #[qparse("{dst} = extractelement {vector_ty:cut()} {vector:cut()}, i32 {index:cut()}")]
     ExtractElement {
         dst: SSAVal,
         vector_ty: Type,
         vector: Operand,
         index: Operand,
     },
-    #[qparse("{dst} = insertelement {vector_ty} {vector}, {element_ty} {element}, i32 {index}")]
+    #[qparse("{dst} = insertelement {vector_ty:cut()} {vector:cut()}, {element_ty:cut()} {element:cut()}, i32 {index:cut()}")]
     InsertElement {
         dst: SSAVal,
         vector_ty: Type,

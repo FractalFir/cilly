@@ -412,6 +412,7 @@ pub enum ModuleBuilderError {
     InvalidFuncRef { fnc: FuncRef },
     InvalidSourceLoc,
     FuncFinished,
+    FallbackNotFound { name: String },
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct GlobalRef(usize);

@@ -65,7 +65,10 @@ fn write_escaped(f: &mut std::fmt::Formatter<'_>, c: char) -> std::fmt::Result {
     Ok(())
 }
 impl qparse::Parseable<qparse::Display> for GlobalIdent {
-    fn parse(input: &str) -> nom::IResult<&str, Self> {
+    fn parse<'a, E>(input: &'a str) -> nom::IResult<&'a str, Self, E>
+    where
+        E: qparse::QParseError<'a>,
+    {
         (
             tag("@"),
             alt((
@@ -90,16 +93,21 @@ impl qparse::Parseable<qparse::Display> for GlobalIdent {
     }
 }
 // Parse a byte in the \xx LLVM form.
-fn escaped_byte(input: &str) -> nom::IResult<&str, u8> {
-    map_res(
+fn escaped_byte<'a, E>(input: &'a str) -> nom::IResult<&'a str, u8, E>
+where
+    E: qparse::QParseError<'a>,
+{
+    nom::combinator::map_parser(
         preceded(tag("\\"), take(2usize)),
-        <u8 as qparse::Parseable<qparse::LowerHex>>::parse,
+        nom::combinator::all_consuming(<u8 as qparse::Parseable<qparse::LowerHex>>::parse),
     )
-    .map(|(_, val)| val)
     .parse(input)
 }
 /// Parser for individual identifier parts.
-fn ident_char<'a>(is_first: bool) -> impl FnMut(&'a str) -> nom::IResult<&'a str, Vec<u8>> {
+fn ident_char<'a, E>(is_first: bool) -> impl FnMut(&'a str) -> nom::IResult<&'a str, Vec<u8>, E>
+where
+    E: qparse::QParseError<'a>,
+{
     move |input| {
         alt((
             // Either this is an escaped byte
