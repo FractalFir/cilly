@@ -47,6 +47,7 @@ dependencies = [
  "rand",
  "serde",
  "tempfile",
+ "traversable",
 ]
 
 [[package]]
@@ -331,6 +332,26 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys",
+]
+
+[[package]]
+name = "traversable"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f02876fdee85837449538b70b60d55b63019c13144dbdde5851b9729ab908803"
+dependencies = [
+ "traversable-derive",
+]
+
+[[package]]
+name = "traversable-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2f5563a718261d694f4e44840f41476fbca4b2386e2ed03fe285aae2d278df5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
 ]
 
 [[package]]

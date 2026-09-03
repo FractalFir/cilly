@@ -1,9 +1,10 @@
 use arbitrary::Arbitrary;
+use traversable::{Traversable, TraversableMut};
 
 use crate::{Operand, Type};
 
 #[qparse_macros::qparse("")]
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub enum Intrinsic {
     /// Float to unsgiend int cast, clamps to range.
     #[qparse("{dst_ty} @llvm.fptoui.sat.{dst_ty}.{src_ty}({src_ty} {val})")]

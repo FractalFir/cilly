@@ -1,4 +1,5 @@
 use arbitrary::Arbitrary;
+use traversable::{Traversable, TraversableMut};
 
 use crate::{
     BuilderError, F16_TY, F32_TY, F64_TY, F128_TY, GlobalIdent, I1_TY, IntTy, PTR_TY, ScalarTy,
@@ -6,10 +7,10 @@ use crate::{
 };
 
 #[qparse_macros::qparse("%v{0:cut()}")]
-#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug, Traversable, TraversableMut)]
 pub struct SSAVal(pub(crate) u32);
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Arbitrary, Traversable, TraversableMut)]
 pub enum Operand {
     #[qparse("{0}")]
     SSA(SSAVal),
@@ -19,7 +20,7 @@ pub enum Operand {
     Constant(Constant),
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, PartialEq, Debug)]
+#[derive(Clone, Arbitrary, PartialEq, Debug, Traversable, TraversableMut)]
 pub enum Constant {
     #[qparse("true")]
     True,

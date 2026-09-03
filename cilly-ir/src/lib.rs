@@ -41,12 +41,14 @@ pub(crate) use structurize::*;
 mod intrincis;
 pub(crate) use intrincis::*;
 mod fallback;
+pub use fallback::*;
+use traversable::{Traversable, TraversableMut};
 #[cfg(test)]
 mod tests;
 #[qparse_macros::qparse("PlaceHolder")]
 #[derive(Default, PartialEq, Eq, Arbitrary, Clone, Debug)]
 pub(crate) struct PlaceHolder;
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Traversable, TraversableMut)]
 pub(crate) struct SourceLocation {
     pub(crate) opt: Option<SourceLocationInner>,
 }
@@ -74,7 +76,7 @@ impl qparse::Parseable<qparse::Display> for SourceLocation {
     "; source {file}:{line}:{col}
 "
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct SourceLocationInner {
     file: GlobalIdent,
     line: u32,

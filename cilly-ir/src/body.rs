@@ -1,8 +1,9 @@
 use arbitrary::Arbitrary;
 use nom::{Parser, character::complete::multispace0, multi::many1};
+use traversable::{Traversable, TraversableMut};
 
-use crate::{Constant, Instruction, Operand, Type, comment};
-#[derive(Clone, Debug)]
+use crate::{Constant, Instruction, Legalzer, Operand, Type, comment};
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct InstrList {
     pub(crate) instrs: Vec<Instruction>,
 }
@@ -36,26 +37,35 @@ impl qparse::Parseable<qparse::Display> for InstrList {
     where
         E: qparse::QParseError<'a>,
     {
-        many1((multispace0, Instruction::parse, comment).map(|(_, i, _)| i))
-            .map(|instrs| Self { instrs })
-            .parse(input)
+        many1(
+            (
+                multispace0,
+                nom::combinator::not(nom::bytes::complete::tag("call void @llvm.trap()")),
+                Instruction::parse,
+                comment,
+            )
+                .map(|(_, _, i, _)| i),
+        )
+        .map(|instrs| Self { instrs })
+        .parse(input)
     }
 }
 
-#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug, Traversable, TraversableMut)]
 #[qparse_macros::qparse("%l{id:x}")]
 pub struct Local {
     pub(crate) id: u32,
 }
-#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, Arbitrary, PartialEq, Eq, Debug, Hash, Traversable, TraversableMut)]
 #[qparse_macros::qparse("l{id:x}")]
 pub struct Label {
     pub(crate) id: u32,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct Body {
     pub(crate) elems: Vec<CFGElem>,
 }
+
 impl std::fmt::Display for Body {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for elem in &self.elems {
@@ -82,7 +92,7 @@ impl qparse::Parseable<qparse::Display> for Body {
     }
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, Debug)]
+#[derive(Clone, Arbitrary, Debug, Traversable, TraversableMut)]
 pub(crate) enum CFGElem {
     #[qparse("ret {ty} {operand}")]
     Return { ty: Type, operand: Operand },
@@ -164,7 +174,7 @@ impl<'a> Arbitrary<'a> for Body {
         )
     }
 }
-#[derive(Clone, Arbitrary, Debug)]
+#[derive(Clone, Arbitrary, Debug, Traversable, TraversableMut)]
 pub(crate) struct Switch {
     pub(crate) default_label: Label,
     pub(crate) default: Body,

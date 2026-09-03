@@ -1,22 +1,25 @@
 use std::num::NonZeroU32;
 
 use nom::{Parser, character::complete::multispace0, multi::many0};
+use traversable::{Traversable, TraversableMut};
 
 use crate::{Local, SSAVal, Type, comment};
 #[qparse_macros::qparse("{ssa_id} = alloca i8, i32 {size}, align {align}")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct AllocA {
     pub(crate) ssa_id: SSAVal,
+    #[traverse(skip)]
     pub(crate) size: NonZeroU32,
+    #[traverse(skip)]
     pub(crate) align: NonZeroU32,
 }
 #[qparse_macros::qparse("{local} = alloca {ty}")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct LocalDef {
     pub(crate) local: Local,
     pub(crate) ty: Type,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct Locals {
     /// alloca - stack allocation, whose address can be taken.
     pub(crate) allocas: Vec<AllocA>,

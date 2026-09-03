@@ -2,24 +2,28 @@ use std::num::NonZeroU32;
 
 use arbitrary::Arbitrary;
 use nom::multi::many0;
+use traversable::{Traversable, TraversableMut};
 
 use crate::CType;
 
 #[qparse_macros::qparse("")]
-#[derive(Clone, Debug, Arbitrary, PartialEq)]
+#[derive(Clone, Debug, Arbitrary, PartialEq, Traversable, TraversableMut)]
 pub enum Attr {
     #[qparse("zext ")]
     Zext,
     #[qparse("sext ")]
     Sext,
     #[qparse("sret([{size} x i8]) ")]
-    Sret { size: NonZeroU32 },
+    Sret {
+        #[traverse(skip)]
+        size: NonZeroU32,
+    },
     #[qparse("likec({0})")]
     /// The value is passed in a special, target-defined manner. It is passed
     /// exactly the same way a given C type would be passed on this target.
     LikeC(CType),
 }
-#[derive(Clone, Debug, Arbitrary, Default)]
+#[derive(Clone, Debug, Arbitrary, Default, Traversable, TraversableMut)]
 pub(crate) struct AttrList {
     attrs: Vec<Attr>,
 }

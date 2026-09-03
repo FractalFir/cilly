@@ -2,8 +2,9 @@ use std::num::{NonZeroU8, NonZeroU32};
 
 use arbitrary::Arbitrary;
 use nom::{bytes::complete::tag, combinator::map, multi::separated_list0, sequence::delimited};
+use traversable::{Traversable, TraversableMut};
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, Debug, PartialEq)]
+#[derive(Clone, Arbitrary, Debug, PartialEq, Traversable, TraversableMut)]
 pub enum FloatTy {
     #[qparse("float")]
     Float,
@@ -25,7 +26,7 @@ impl FloatTy {
     }
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, Debug, PartialEq)]
+#[derive(Clone, Arbitrary, Debug, PartialEq, Traversable, TraversableMut)]
 pub enum ScalarTy {
     #[qparse("{0}")]
     Int(IntTy),
@@ -56,11 +57,12 @@ impl ScalarTy {
     }
 }
 #[qparse_macros::qparse("i{bitwidth}")]
-#[derive(Clone, Arbitrary, Debug, PartialEq)]
+#[derive(Clone, Arbitrary, Debug, PartialEq, Traversable, TraversableMut)]
 pub struct IntTy {
+    #[traverse(skip)]
     pub(crate) bitwidth: NonZeroU8,
 }
-#[derive(Clone, Arbitrary, Debug, PartialEq)]
+#[derive(Clone, Arbitrary, Debug, PartialEq, Traversable, TraversableMut)]
 pub struct StructTy {
     elems: Vec<Type>,
 }
@@ -98,7 +100,7 @@ impl qparse::Parseable<qparse::Display> for StructTy {
 }
 
 #[qparse_macros::qparse("")]
-#[derive(Clone, Arbitrary, Debug, PartialEq)]
+#[derive(Clone, Arbitrary, Debug, PartialEq, Traversable, TraversableMut)]
 pub enum Type {
     #[qparse("void")]
     Void,
@@ -107,11 +109,13 @@ pub enum Type {
     #[qparse("<{element_count} x {element_ty}>")]
     VectorTy {
         element_ty: ScalarTy,
+        #[traverse(skip)]
         element_count: NonZeroU8,
     },
     #[qparse("[{element_count} x {element_ty}]")]
     ArrayTy {
         element_ty: ScalarTy,
+        #[traverse(skip)]
         element_count: NonZeroU32,
     },
     #[qparse("{0}")]

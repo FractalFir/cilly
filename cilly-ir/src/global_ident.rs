@@ -9,8 +9,10 @@ use nom::{
     sequence::preceded,
 };
 use std::fmt::Write;
-#[derive(Clone, PartialEq, Eq, Debug)]
+use traversable::{Traversable, TraversableMut};
+#[derive(Clone, PartialEq, Eq, Debug, Hash,Traversable, TraversableMut)]
 pub struct GlobalIdent {
+    #[traverse(skip)]
     name: String,
 }
 impl<'a> Arbitrary<'a> for GlobalIdent {
@@ -32,7 +34,7 @@ impl GlobalIdent {
         }
     }
 }
-const IDENT_CHARS: &str = "abcdefghijklmnoprstuwxyzABCDEFGHIJKLMNOPRSTUWXYZ$._";
+const IDENT_CHARS: &str = "abcdefghijklmnoprstuwxyzvqABCDEFGHIJKLMNOPRSTUWXYZVQ$._";
 impl std::fmt::Display for GlobalIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('@')?;

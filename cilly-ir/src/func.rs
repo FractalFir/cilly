@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 use arbitrary::Arbitrary;
 use nom::{
@@ -6,12 +6,15 @@ use nom::{
     sequence::delimited,
 };
 use qparse_macros::qparse;
+use traversable::{Traversable, TraversableMut};
 
-use crate::{Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, locals::Locals};
+use crate::{
+    Attr, AttrList, Body, GlobalIdent, Legalzer, Linkage, SourceLocation, Type, locals::Locals,
+};
 
 /// Function Declaration or Definition.
 #[qparse_macros::qparse("")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) enum Fnc {
     #[qparse("{src_loc}declare {linkage}{output} {name}({inputs})")]
     Decl {
@@ -46,19 +49,19 @@ impl Fnc {
         }
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct InputArgs {
     pub(crate) args: Vec<TyAndAttr>,
     pub(crate) va_args: bool,
 }
 #[qparse("{attr}{ty}")]
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) struct AttrAndTy {
     pub(crate) attr: AttrList,
     pub(crate) ty: Type,
 }
 #[qparse("{ty} {attr}")]
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub struct TyAndAttr {
     pub(crate) attr: AttrList,
     pub(crate) ty: Type,
@@ -120,6 +123,7 @@ impl qparse::Parseable<qparse::Display> for InputArgs {
         .parse(input)
     }
 }
+
 #[test]
 fn extern_global() {
     use crate::Attr;

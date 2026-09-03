@@ -1,9 +1,10 @@
 use std::num::NonZeroU32;
 
 use arbitrary::Arbitrary;
+use traversable::{Traversable, TraversableMut};
 
 use crate::{AttrAndTy, Intrinsic, Local, Operand, SSAVal, TyAndAttr, Type};
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) struct CallArgs {
     pub(crate) args: Vec<(TyAndAttr, Operand)>,
 }
@@ -27,7 +28,7 @@ impl qparse::Parseable<qparse::Display> for CallArgs {
     }
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, Arbitrary)]
+#[derive(Clone, Copy, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) enum Binop {
     #[qparse("add")]
     Add,
@@ -67,7 +68,7 @@ pub(crate) enum Binop {
     FRem,
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, Arbitrary)]
+#[derive(Clone, Copy, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) enum ICmp {
     #[qparse("eq")]
     Eq,
@@ -91,7 +92,7 @@ pub(crate) enum ICmp {
     SLe,
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, Arbitrary)]
+#[derive(Clone, Copy, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) enum CastOp {
     #[qparse("trunc")]
     Trunc,
@@ -119,7 +120,7 @@ pub(crate) enum CastOp {
     BitCast,
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, Arbitrary)]
+#[derive(Clone, Copy, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) enum FCmp {
     #[qparse("oeq")]
     OEq,
@@ -147,7 +148,7 @@ pub(crate) enum FCmp {
     UNe,
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary, Traversable, TraversableMut)]
 pub enum AtomicRmwOp {
     #[qparse("xchg")]
     Xchg,
@@ -181,7 +182,7 @@ pub enum AtomicRmwOp {
     FMin,
 }
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary, Traversable, TraversableMut)]
 pub enum AtomOrdering {
     #[qparse("unordered")]
     Unordered,
@@ -198,7 +199,7 @@ pub enum AtomOrdering {
 }
 
 #[qparse_macros::qparse("")]
-#[derive(Clone, Debug, Arbitrary)]
+#[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) enum Instruction {
     #[qparse("{dst} = icmp {cmp:cut()} {ty:cut()} {lhs:cut()}, {rhs:cut()}")]
     ICmp {
@@ -297,7 +298,9 @@ pub(crate) enum Instruction {
         els: Operand,
         cond_ty: Type,
     },
-    #[qparse("{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr:cut()}, {off_ty:cut()} {off:cut()}")]
+    #[qparse(
+        "{dst} = getelementptr{inbounds:present( inbounds)} i8, ptr {ptr:cut()}, {off_ty:cut()} {off:cut()}"
+    )]
     PtrOffset {
         dst: SSAVal,
         ptr: Operand,
@@ -305,19 +308,25 @@ pub(crate) enum Instruction {
         off: Operand,
         inbounds: bool,
     },
-    #[qparse("{dst} = load{volatile:present( volatile)} {ty}, ptr {ptr:cut()}, align {align:cut()}")]
+    #[qparse(
+        "{dst} = load{volatile:present( volatile)} {ty}, ptr {ptr:cut()}, align {align:cut()}"
+    )]
     Load {
         dst: SSAVal,
         ptr: Operand,
         ty: Type,
+        #[traverse(skip)]
         align: NonZeroU32,
         volatile: bool,
     },
-    #[qparse("{dst} = load atomic {ty:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}")]
+    #[qparse(
+        "{dst} = load atomic {ty:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}"
+    )]
     LoadAtomic {
         dst: SSAVal,
         ptr: Operand,
         ty: Type,
+        #[traverse(skip)]
         align: NonZeroU32,
         ordering: AtomOrdering,
     },
@@ -326,15 +335,18 @@ pub(crate) enum Instruction {
         ptr: Operand,
         ty: Type,
         val: Operand,
+        #[traverse(skip)]
         align: NonZeroU32,
         volatile: bool,
     },
-
-    #[qparse("store atomic {ty:cut()} {val:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}")]
+    #[qparse(
+        "store atomic {ty:cut()} {val:cut()}, ptr {ptr:cut()} {ordering:cut()}, align {align:cut()}"
+    )]
     StoreAtomic {
         ptr: Operand,
         ty: Type,
         val: Operand,
+        #[traverse(skip)]
         align: NonZeroU32,
         ordering: AtomOrdering,
     },
@@ -353,7 +365,9 @@ pub(crate) enum Instruction {
     },
     #[qparse("fence {ordering:cut()}")]
     Fence { ordering: AtomOrdering },
-    #[qparse("{dst} = atomicrmw {op:cut()} ptr {ptr:cut()}, {ty:cut()} {val:cut()} {ordering:cut()}, align {align:cut()}")]
+    #[qparse(
+        "{dst} = atomicrmw {op:cut()} ptr {ptr:cut()}, {ty:cut()} {val:cut()} {ordering:cut()}, align {align:cut()}"
+    )]
     AtomicRmw {
         dst: SSAVal,
         op: AtomicRmwOp,
@@ -361,6 +375,7 @@ pub(crate) enum Instruction {
         ty: Type,
         val: Operand,
         ordering: AtomOrdering,
+        #[traverse(skip)]
         align: NonZeroU32,
     },
     #[qparse("{dst} = extractvalue {aggregate_ty:cut()} {aggregate:cut()}, {index:cut()}")]
@@ -370,7 +385,9 @@ pub(crate) enum Instruction {
         aggregate: Operand,
         index: u64,
     },
-    #[qparse("{dst} = insertvalue {aggregate_ty:cut()} {aggregate:cut()}, {value_ty:cut()} {element:cut()}, {index:cut()}")]
+    #[qparse(
+        "{dst} = insertvalue {aggregate_ty:cut()} {aggregate:cut()}, {value_ty:cut()} {element:cut()}, {index:cut()}"
+    )]
     InsertValue {
         dst: SSAVal,
         aggregate_ty: Type,
@@ -386,7 +403,9 @@ pub(crate) enum Instruction {
         vector: Operand,
         index: Operand,
     },
-    #[qparse("{dst} = insertelement {vector_ty:cut()} {vector:cut()}, {element_ty:cut()} {element:cut()}, i32 {index:cut()}")]
+    #[qparse(
+        "{dst} = insertelement {vector_ty:cut()} {vector:cut()}, {element_ty:cut()} {element:cut()}, i32 {index:cut()}"
+    )]
     InsertElement {
         dst: SSAVal,
         vector_ty: Type,

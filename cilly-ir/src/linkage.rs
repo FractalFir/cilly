@@ -1,5 +1,7 @@
+use traversable::{Traversable, TraversableMut};
+
 #[qparse_macros::qparse("")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Traversable, TraversableMut)]
 pub enum Linkage {
     #[qparse("internal ")]
     Internal,

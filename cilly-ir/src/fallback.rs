@@ -1,8 +1,9 @@
 use std::{collections::HashMap, sync::Mutex};
 
 use qparse::Parseable;
+use traversable::VisitorMut;
 
-use crate::{Fnc, ModuleBuilderError};
+use crate::{Binop, Fnc, GlobalIdent, Instruction, ModuleBuilderError};
 #[qparse_macros::qparse("# FALLBACK ")]
 struct LineDef;
 #[derive(Debug)]
@@ -88,17 +89,101 @@ impl FallbackList {
             .instantiate(v))
     }
 }
+pub struct Legalzer {}
 #[test]
 fn parse_add_emu() {
+    struct LegalizeAdd<'a,'b> {
+        list: &'b FallbackList,
+        fallbacks:&'a mut HashMap<GlobalIdent,Fnc>
+    }
+    impl VisitorMut for LegalizeAdd<'_,'_> {
+        type Break = ();
+
+        fn enter_mut(
+            &mut self,
+            this: &mut dyn core::any::Any,
+        ) -> std::ops::ControlFlow<Self::Break> {
+            let Some(instr) = this.downcast_mut() else {
+                return std::ops::ControlFlow::Continue(());
+            };
+            let Instruction::Binop {
+                dst,
+                ty,
+                lhs,
+                rhs,
+                op: Binop::Add,
+            } = instr
+            else {
+                return std::ops::ControlFlow::Continue(());
+            };
+            if ty.is_int() && let Some(bitsize) = ty.try_bitsize() && bitsize > 16{
+                let fallback = self.list.instantiate("cilly.emu.iadd", [
+                    ("$NARROW".to_owned(), format!("{}",bitsize/2)),
+                    ("$WIDE".to_owned(), format!("{bitsize}")),
+                    ("$IS_LE".to_owned(), "true".to_owned()),
+                ]).unwrap();
+                let dst = *dst;
+                let ty = ty.clone();
+                let lhs = lhs.clone();
+                let rhs = rhs.clone();
+                let tynattr = TyAndAttr{ attr: AttrList::default(), ty:ty.clone() };
+                *instr = Instruction::Call {
+                    dst,
+                    output: AttrAndTy {
+                        attr: AttrList::default(),
+                        ty:ty,
+                    },
+                    callee:Operand::Global(fallback.name().clone()),
+                    call_args: CallArgs { args: vec![(tynattr.clone(),lhs),(tynattr,rhs)] },
+                };
+                self.fallbacks.insert(fallback.name().clone(),fallback);
+            }
+            std::ops::ControlFlow::Continue(())
+        }
+    }
+    use crate::*;
     //; CILLY_FALLBACK iadd $WIDE $NARROW
     let emu = include_str!("fallback/emu_iadd.cir");
 
     let list = FallbackList::new(&emu);
     let emu = list
         .instantiate(
-            "cilly.emu.iadd",
-            vec![("$NARROW", "64"), ("$WIDE", "128"), ("$IS_LE", "true")],
+            "cilly.emu.iadd.ovf",
+            vec![
+                ("$NARROW", "64"),
+                ("$WIDE", "128"),
+                ("$IS_LE", "true"),
+                ("$BITOP", "and"),
+            ],
         )
         .unwrap();
-    todo!("emu:{emu}");
+
+    let mut module = Module::default();
+    let i8 = TyAndAttr {
+        attr: AttrList::default(),
+        ty: Type::ix(std::num::NonZeroU8::new(128).unwrap()),
+    };
+    let add = module
+        .declare(
+            GlobalIdent::new("add").unwrap(),
+            Linkage::External,
+            i8.clone(),
+            vec![i8.clone(), i8.clone()],
+            false,
+        )
+        .unwrap();
+    let mut builder = module.fn_builder(add).unwrap();
+    let entry = builder.new_block();
+    builder.position_at_end(entry).unwrap();
+    let lhs = builder.get_param(0).unwrap();
+    let rhs = builder.get_param(1).unwrap();
+    let res = builder.build_add(i8.ty, lhs, rhs).unwrap();
+    builder.build_ret(Some(res)).unwrap();
+    builder.finish(&mut module);
+    
+    module.legalize(|fnc, fallbacks| {
+        let mut legalizer = LegalizeAdd { list:&list,fallbacks };
+        fnc.traverse_mut(&mut legalizer);
+    });
+    todo!("{module}")
 }

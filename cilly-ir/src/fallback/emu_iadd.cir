@@ -9,7 +9,7 @@ define i$WIDE @cilly.emu.iadd.i$WIDE(i$WIDE %v0, i$WIDE %v1){
     %v8 = select i1 $IS_LE, i$NARROW %v4, i$NARROW %v6 ; Handle endiness
     %v9 = select i1 $IS_LE, i$NARROW %v6, i$NARROW %v4
     %v10 = select i1 $IS_LE, i$NARROW %v5, i$NARROW %v7
-    %v11 = select i1 $IS_LE, i$NARROW v7, i$NARROW %%v5
+    %v11 = select i1 $IS_LE, i$NARROW %v7, i$NARROW %v5
     %v12 = call {i$NARROW, i1} @llvm.uadd.with.overflow.i$NARROW(i$NARROW %v8, i$NARROW %v10)
     %v13 = extractvalue {i$NARROW, i1} %v12, 0 ; Low half
     %v14 = extractvalue {i$NARROW, i1} %v12, 1 ; Carry
@@ -22,4 +22,51 @@ define i$WIDE @cilly.emu.iadd.i$WIDE(i$WIDE %v0, i$WIDE %v1){
     %v21 = insertelement <2 x i$NARROW> %v20,   i$NARROW %v19, i32 1
     %v22 = bitcast <2 x i$NARROW> %v21 to i$WIDE
     ret i$WIDE %v22
+}
+# FALLBACK cilly.emu.iadd.ovf
+define {i$WIDE, i1} @cilly.emu.iadd.i$WIDE.ovf(i$WIDE %v0, i$WIDE %v1){
+    %v2 = bitcast i$WIDE %v0 to <2 x i$NARROW> ; input to the 2 leaves
+    %v3 = bitcast i$WIDE %v1 to <2 x i$NARROW> ; input to the 2 leaves
+    %v4 = extractelement <2 x i$NARROW> %v2, i32 0 ; extract the low / high halves
+    %v5 = extractelement <2 x i$NARROW> %v3, i32 0
+    %v6 = extractelement <2 x i$NARROW> %v2, i32 1
+    %v7 = extractelement <2 x i$NARROW> %v3, i32 1
+    %v8 = select i1 $IS_LE, i$NARROW %v4, i$NARROW %v6 ; Handle endiness
+    %v9 = select i1 $IS_LE, i$NARROW %v6, i$NARROW %v4
+    %v10 = select i1 $IS_LE, i$NARROW %v5, i$NARROW %v7
+    %v11 = select i1 $IS_LE, i$NARROW %v7, i$NARROW %v5
+    %v12 = call {i$NARROW, i1} @llvm.uadd.with.overflow.i$NARROW(i$NARROW %v8, i$NARROW %v10)
+    %v13 = extractvalue {i$NARROW, i1} %v12, 0 ; Low half
+    %v14 = extractvalue {i$NARROW, i1} %v12, 1 ; Carry
+    %v15 = zext i1 %v14 to i$NARROW ; Widen the carry
+    %v16 = call {i$NARROW, i1} @llvm.uadd.with.overflow.i$NARROW(i$NARROW %v9, i$NARROW %v11)
+    %v17 = extractvalue {i$NARROW, i1} %v16, 0 ; High sum...
+    %v18 = extractvalue {i$NARROW, i1} %v16, 1 ; and carry 
+    %v19 = call {i$NARROW, i1} @llvm.uadd.with.overflow.i$NARROW(i$NARROW %v17, i$NARROW %v15)
+    %v20 = extractvalue {i$NARROW, i1} %v19, 0 ; ...plus carry
+    %v21 = extractvalue {i$NARROW, i1} %v19, 1 ; ...and its carry out
+    %v22 = or i1 %v18, %v21 ; If either one of the ops ovf-ed, then the whole op ovf-ed
+    %v23 = select i1 $IS_LE, i$NARROW %v13, i$NARROW %v20 ; Handle endiness(pack elements in the right order)
+    %v24 = select i1 $IS_LE, i$NARROW %v20, i$NARROW %v13
+    %v25 = insertelement <2 x i$NARROW> undef, i$NARROW %v23, i32 0
+    %v26 = insertelement <2 x i$NARROW> %v25,   i$NARROW %v24, i32 1
+    %v27 = bitcast <2 x i$NARROW> %v26 to i$WIDE
+    %v28 = insertvalue {i$WIDE, i1} undef, i$WIDE %v27, 0
+    %v29 = insertvalue {i$WIDE, i1} %v28, i1 %v22, 1
+    ret {i$WIDE, i1} %v29
+}
+# FALLBACK cilly.emu.ibitop
+define i$WIDE @cilly.emu.$BITOP.i$WIDE(i$WIDE %v0, i$WIDE %v1){
+    %v2 = bitcast i$WIDE %v0 to <2 x i$NARROW> ; input to the 2 leaves
+    %v3 = bitcast i$WIDE %v1 to <2 x i$NARROW> ; input to the 2 leaves
+    %v4 = extractelement <2 x i$NARROW> %v2, i32 0 ; extract the low / high halves
+    %v5 = extractelement <2 x i$NARROW> %v3, i32 0
+    %v6 = extractelement <2 x i$NARROW> %v2, i32 1
+    %v7 = extractelement <2 x i$NARROW> %v3, i32 1
+    %v8 = $BITOP i$NARROW %v4, %v6
+    %v9 = $BITOP i$NARROW %v5, %v7
+    %v10 = insertelement <2 x i$NARROW> undef, i$NARROW %v8, i32 0
+    %v11 = insertelement <2 x i$NARROW> %v20,   i$NARROW %v9, i32 1
+    %v12 = bitcast <2 x i$NARROW> %v11 to i$WIDE
+    ret i$WIDE %v12
 }

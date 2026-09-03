@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{Read, Write},
     num::NonZeroU32,
     sync::atomic::{AtomicUsize, Ordering},
@@ -7,8 +8,8 @@ use std::{
 use tempfile::NamedTempFile;
 
 use crate::{
-    AttrAndTy, ConstInit, FunctionBuilder, GlobalDeclLinkage, GlobalIdent, InputArgs, Linkage,
-    Locals, Section, SourceLocation, TyAndAttr, func::Fnc, global::Global,
+    AttrAndTy, ConstInit, FunctionBuilder, GlobalDeclLinkage, GlobalIdent, InputArgs, Legalzer,
+    Linkage, Locals, Section, SourceLocation, TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default, Clone)]
 pub struct Module {
@@ -401,6 +402,27 @@ impl Module {
     pub fn symdefcount(&self) -> usize {
         self.functions.iter().filter(|f| f.is_def()).count()
             + self.globals.iter().filter(|g| g.is_def()).count()
+    }
+    /// Replaces instructions with calls to a target-specific legalizer.
+    pub(crate) fn legalize(
+        &mut self,
+        mut legalizer: impl FnMut(&mut Fnc, &mut HashMap<GlobalIdent, Fnc>),
+    ) {
+        let mut idx = 0;
+        while idx < self.functions.len() {
+            let mut fallbacks = HashMap::new();
+            legalizer(&mut self.functions[idx], &mut fallbacks);
+            for (name, fallback) in fallbacks {
+                self.insert_fn(name, fallback);
+            }
+            idx += 1;
+        }
+    }
+
+    fn insert_fn(&mut self, name: GlobalIdent, fnc: Fnc) {
+        if !self.functions.iter().any(|f| *f.name() == name) {
+            self.functions.push(fnc)
+        }
     }
 }
 
