@@ -8,7 +8,7 @@ use std::{
 use tempfile::NamedTempFile;
 
 use crate::{
-    AttrAndTy, ConstInit, FunctionBuilder, GlobalDeclLinkage, GlobalIdent, InputArgs, Legalzer,
+    AttrAndTy, ConstInit, FunctionBuilder, GlobalDeclLinkage, GlobalIdent, InputArgs, 
     Linkage, Locals, Section, SourceLocation, TyAndAttr, func::Fnc, global::Global,
 };
 #[derive(Default, Clone)]

@@ -2,7 +2,7 @@ use arbitrary::Arbitrary;
 use nom::{Parser, character::complete::multispace0, multi::many1};
 use traversable::{Traversable, TraversableMut};
 
-use crate::{Constant, Instruction, Legalzer, Operand, Type, comment};
+use crate::{Constant, Instruction,  Operand, Type, comment};
 #[derive(Clone, Debug, Traversable, TraversableMut)]
 pub(crate) struct InstrList {
     pub(crate) instrs: Vec<Instruction>,

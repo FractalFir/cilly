@@ -10,7 +10,7 @@ use nom::{
 };
 use std::fmt::Write;
 use traversable::{Traversable, TraversableMut};
-#[derive(Clone, PartialEq, Eq, Debug, Hash,Traversable, TraversableMut)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Traversable, TraversableMut)]
 pub struct GlobalIdent {
     #[traverse(skip)]
     name: String,

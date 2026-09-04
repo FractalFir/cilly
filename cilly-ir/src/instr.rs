@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use arbitrary::Arbitrary;
 use traversable::{Traversable, TraversableMut};
 
-use crate::{AttrAndTy, Intrinsic, Local, Operand, SSAVal, TyAndAttr, Type};
+use crate::{AttrAndTy, AttrList, Intrinsic, Local, Operand, SSAVal, TyAndAttr, Type};
 #[derive(Clone, Debug, Arbitrary, Traversable, TraversableMut)]
 pub(crate) struct CallArgs {
     pub(crate) args: Vec<(TyAndAttr, Operand)>,
@@ -414,4 +414,22 @@ pub(crate) enum Instruction {
         element_ty: Type,
         index: Operand,
     },
+}
+impl Instruction {
+    // Helper for calling functions in the fallback generator. 
+    pub(crate) fn call_fnc(fnc: &crate::Fnc, args: &[Operand], dst: SSAVal) -> Self {
+        let inputs = fnc.inputs();
+        let inputs = &inputs.args;
+        assert_eq!(args.len(), inputs.len());
+        let args = args.iter().zip(inputs).map(|(o,ty)|(ty.clone(),o.clone())).collect();
+        Self::Call {
+            dst,
+            output: AttrAndTy {
+                attr: AttrList::default(),
+                ty: fnc.output().ty.clone(),
+            },
+            callee: Operand::Global(fnc.name().clone()),
+            call_args: CallArgs { args},
+        }
+    }
 }

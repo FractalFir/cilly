@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use qparse::Parseable;
 use traversable::VisitorMut;
@@ -9,7 +9,7 @@ struct LineDef;
 #[derive(Debug)]
 struct Fallback {
     src: String,
-    instantiated: Mutex<HashMap<Vec<(String, String)>, Fnc>>,
+    instantiated: Mutex<HashMap<Vec<(String, String)>, Arc<Fnc>>>,
 }
 impl Fallback {
     fn new(src: String) -> Self {
@@ -18,7 +18,7 @@ impl Fallback {
             src,
         }
     }
-    fn instantiate(&self, instance: Vec<(String, String)>) -> Fnc {
+    fn instantiate(&self, instance: Vec<(String, String)>) -> Arc<Fnc> {
         self.instantiated
             .lock()
             .unwrap()
@@ -31,7 +31,7 @@ impl Fallback {
                 // TODO: replace with parse with error handling.
                 let res = Fnc::parse::<'_, nom_language::error::VerboseError<&str>>(&src);
                 match res {
-                    Ok((_, fnc)) => fnc,
+                    Ok((_, fnc)) => Arc::new(fnc),
                     Err(err) => {
                         let msg = match err {
                             nom::Err::Error(e) | nom::Err::Failure(e) => {
@@ -77,7 +77,7 @@ impl FallbackList {
         &self,
         name: &str,
         instance: V,
-    ) -> Result<Fnc, ModuleBuilderError> {
+    ) -> Result<Arc<Fnc>, ModuleBuilderError> {
         let v: Vec<(S, S)> = instance.into();
         let v: Vec<(String, String)> = v.into_iter().map(|(a, b)| (a.into(), b.into())).collect();
         Ok(self
@@ -89,14 +89,50 @@ impl FallbackList {
             .instantiate(v))
     }
 }
-pub struct Legalzer {}
+pub struct Legalizer<'fallbacks,'list>{
+    fallbacks: &'fallbacks mut HashMap<GlobalIdent, Fnc>,
+    list:&'list FallbackList
+}
+impl Legalizer<'_,'_>{
+    fn fallback_for_instr(&self,instr:&Instruction)->Option<Arc<Fnc>>{
+        match instr{
+            Instruction::Binop {
+                dst,
+                ty,
+                lhs,
+                rhs,
+                op: Binop::Add,
+            } => {
+                if ty.is_int()
+                && let Some(bitsize) = ty.try_bitsize()
+                && bitsize > 16
+            {
+                Some(self
+                    .list
+                    .instantiate(
+                        "cilly.emu.iadd",
+                        [
+                            ("$NARROW".to_owned(), format!("{}", bitsize / 2)),
+                            ("$WIDE".to_owned(), format!("{bitsize}")),
+                            ("$IS_LE".to_owned(), "true".to_owned()),
+                        ],
+                    )
+                    .unwrap())
+                } else {
+                    None
+                }
+            }
+            _=>None,
+        }
+    }
+}
 #[test]
 fn parse_add_emu() {
-    struct LegalizeAdd<'a,'b> {
+    struct LegalizeAdd<'a, 'b> {
         list: &'b FallbackList,
-        fallbacks:&'a mut HashMap<GlobalIdent,Fnc>
+        fallbacks: &'a mut HashMap<GlobalIdent, Fnc>,
     }
-    impl VisitorMut for LegalizeAdd<'_,'_> {
+    impl VisitorMut for LegalizeAdd<'_, '_> {
         type Break = ();
 
         fn enter_mut(
@@ -116,27 +152,23 @@ fn parse_add_emu() {
             else {
                 return std::ops::ControlFlow::Continue(());
             };
-            if ty.is_int() && let Some(bitsize) = ty.try_bitsize() && bitsize > 16{
-                let fallback = self.list.instantiate("cilly.emu.iadd", [
-                    ("$NARROW".to_owned(), format!("{}",bitsize/2)),
-                    ("$WIDE".to_owned(), format!("{bitsize}")),
-                    ("$IS_LE".to_owned(), "true".to_owned()),
-                ]).unwrap();
-                let dst = *dst;
-                let ty = ty.clone();
-                let lhs = lhs.clone();
-                let rhs = rhs.clone();
-                let tynattr = TyAndAttr{ attr: AttrList::default(), ty:ty.clone() };
-                *instr = Instruction::Call {
-                    dst,
-                    output: AttrAndTy {
-                        attr: AttrList::default(),
-                        ty:ty,
-                    },
-                    callee:Operand::Global(fallback.name().clone()),
-                    call_args: CallArgs { args: vec![(tynattr.clone(),lhs),(tynattr,rhs)] },
-                };
-                self.fallbacks.insert(fallback.name().clone(),fallback);
+            if ty.is_int()
+                && let Some(bitsize) = ty.try_bitsize()
+                && bitsize > 16
+            {
+                let fallback = self
+                    .list
+                    .instantiate(
+                        "cilly.emu.iadd",
+                        [
+                            ("$NARROW".to_owned(), format!("{}", bitsize / 2)),
+                            ("$WIDE".to_owned(), format!("{bitsize}")),
+                            ("$IS_LE".to_owned(), "true".to_owned()),
+                        ],
+                    )
+                    .unwrap();            
+                *instr = Instruction::call_fnc(&fallback, &[lhs.clone(), rhs.clone()], *dst);
+                self.fallbacks.insert(fallback.name().clone(), (*fallback).clone());
             }
             std::ops::ControlFlow::Continue(())
         }
@@ -180,9 +212,12 @@ fn parse_add_emu() {
     let res = builder.build_add(i8.ty, lhs, rhs).unwrap();
     builder.build_ret(Some(res)).unwrap();
     builder.finish(&mut module);
-    
+
     module.legalize(|fnc, fallbacks| {
-        let mut legalizer = LegalizeAdd { list:&list,fallbacks };
+        let mut legalizer = LegalizeAdd {
+            list: &list,
+            fallbacks,
+        };
         fnc.traverse_mut(&mut legalizer);
     });
     todo!("{module}")

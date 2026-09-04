@@ -9,7 +9,7 @@ use qparse_macros::qparse;
 use traversable::{Traversable, TraversableMut};
 
 use crate::{
-    Attr, AttrList, Body, GlobalIdent, Legalzer, Linkage, SourceLocation, Type, locals::Locals,
+    Attr, AttrList, Body, GlobalIdent, Linkage, SourceLocation, Type, locals::Locals,
 };
 
 /// Function Declaration or Definition.
@@ -46,6 +46,18 @@ impl Fnc {
         match self {
             Self::Decl { name, .. } => name,
             Self::Def { name, .. } => name,
+        }
+    }
+    pub(crate) fn output(&self) -> &AttrAndTy {
+        match self {
+            Self::Decl { output, .. } => output,
+            Self::Def { output, .. } => output,
+        }
+    }
+    pub(crate) fn inputs(&self) -> &InputArgs {
+        match self {
+            Self::Decl { inputs, .. } => inputs,
+            Self::Def { inputs, .. } => inputs,
         }
     }
 }
